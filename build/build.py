@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gera a dashboard estatica (index.html) a partir de 4 abas da planilha central
-<<PREENCHER: nome da planilha central do cliente>>:
+Gera a dashboard estatica (index.html) do funil "Acenda Seu Propósito" (Larissa
+Topper · Sala Secreta), a partir de 2 abas da planilha central
+"ASP | Planilha Central de Lançamento Clássico":
 
-  - "Conversas" (gid <<PREENCHER: GID_CONVERSAS>>): fonte PRINCIPAL de leads — webhook
-    de mensageria disparado na 1a mensagem recebida no WhatsApp Business. Usada em
-    TODOS os graficos/cards/tabelas/calculos de conversao.
-  - "Leads" (gid <<PREENCHER: GID_LEADS>>): fonte ANTIGA (popup/form legado). So e
-    contada (total), nunca entra em grafico/card/tabela/conversao.
-  - "Meta Ads" (gid <<PREENCHER: GID_META>>): investimento/impressoes/cliques do gerenciador.
-  - "New Subscriptions" / Compradores (gid <<PREENCHER: GID_SALES>>): usada para cruzar por
-    TELEFONE com a Conversas e atribuir Venda/Faturamento ao anuncio de origem.
+  - "Lista de Leads" (gid 1836439885): fonte PRINCIPAL de leads — formulário Sala
+    Secreta + leads atribuídos ao Meta via utm_*. Usada em TODOS os
+    graficos/cards/tabelas. Este cliente NÃO usa critério de MQL (q=0).
+  - "Meta Ads" (gid 1059708846): investimento/impressoes/cliques + Vendas
+    (Purchases) e Faturamento (Purchases Conversion Value) do gerenciador.
 
-Criterio de Lead Qualificado (MQL): coluna de qualificacao do cliente
-(<<PREENCHER: nome da coluna de MQL, ex. "E medico?">>) == "Sim". Ajuste is_medico()
-e os aliases de coluna em process() para o criterio deste cliente.
+Sem aba de Compradores: Vendas/Faturamento vêm do próprio Meta Ads. Funil e
+Temperatura (seletores das tabelas de otimização) saem do nome da campanha
+(classify_funil / classify_temp).
 
 Este script apenas LE as planilhas (export CSV publico) e emite os REGISTROS
-BRUTOS (leads[], meta[] e sales[]) dentro do HTML. sales[] tem um registro POR
-COMPRA (nunca agregado por telefone), com a DATA REAL da compra — camp/adset/ad
-vem da 1a conversa daquele telefone (atribuicao do anuncio de origem), mas a
-data nunca e' a da conversa, senao vendas de dias diferentes seriam somadas no
-mesmo dia. Todos os filtros, agregacoes, KPIs, tabelas e graficos sao
-calculados no navegador (client-side). Nunca escreve nada de volta.
+BRUTOS (leads[] e meta[]) dentro do HTML. Todos os filtros, agregacoes, KPIs,
+tabelas e graficos sao calculados no navegador (client-side). Nunca escreve
+nada de volta.
 
 Teste local: --conversas-file / --meta-file / --sales-file / --leads-file
 apontando para CSVs baixados.
@@ -41,22 +36,27 @@ import unicodedata
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
-SPREADSHEET_ID = "<<PREENCHER: ID da planilha central (Google Sheets) do cliente>>"
-GID_CONVERSAS = "<<PREENCHER: gid da aba de Conversas / fonte principal de leads>>"
-GID_LEADS = "<<PREENCHER: gid da aba de Leads legado (popup/form) — só contada>>"
-GID_META = "<<PREENCHER: gid da aba Meta Ads>>"
-GID_SALES = "<<PREENCHER: gid da aba de Compradores (New Subscriptions) — cruzada por telefone>>"
+SPREADSHEET_ID = "1aySlj8ryPjXICkRFT6SiFnEZC7z0NkN755jtoAbqQDI"
+# Fonte PRINCIPAL de leads: aba "Lista de Leads" (formulário Sala Secreta + leads
+# atribuídos ao Meta via utm_*). Este cliente NÃO usa aba "Conversas" (webhook) nem
+# critério de MQL — por isso GID_CONVERSAS aponta para a própria Lista de Leads e
+# a qualificação (is_medico) fica sempre desligada (q=0). Sem aba de Compradores:
+# Vendas/Faturamento vêm das colunas Purchases / Purchases Conversion Value do
+# próprio Meta Ads (GID_SALES vazio).
+GID_CONVERSAS = "1836439885"   # Lista de Leads (fonte principal)
+GID_LEADS = ""                 # sem aba de Leads legado
+GID_META = "1059708846"        # Meta Ads
+GID_SALES = ""                 # sem aba de Compradores (vendas vêm do Meta Ads)
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
-CLIENT_NAME = "<<PREENCHER: nome do cliente>>"
-MAIN_PRODUCT = "<<PREENCHER: nome do produto/oferta principal>>"
-# Prefixo comum a TODAS as campanhas da conta (usado para agrupar campanhas no
-# dashboard). Ajuste ao padrão de nomenclatura de campanha deste cliente.
-MAIN_PRODUCT_PREFIX = "<<PREENCHER: prefixo das campanhas do cliente, ex. NOMECLIENTE>>"
+CLIENT_NAME = "Larissa Topper"
+MAIN_PRODUCT = "Acenda Seu Propósito"
+# Prefixo comum às campanhas de captura do funil Sala Secreta.
+MAIN_PRODUCT_PREFIX = "ASP"
 
 BRT = timezone(timedelta(hours=-3))   # horario de Brasilia (exibicao)
-TAX_FACTOR = 1.0   # <<PREENCHER: fator de imposto/taxa da conta de mídia, ex. 1.13806 (13,806%); 1.0 = sem imposto>>
+TAX_FACTOR = 1.0   # sem imposto de mídia neste cliente
 
 # --------------------------------------------------------------------------- #
 # Regras da aba Relatório (Top/Piores anúncios)
@@ -127,6 +127,11 @@ def to_float(v) -> float:
         return 0.0
 
 
+PT_MONTHS = {"janeiro": 1, "fevereiro": 2, "marco": 3, "abril": 4, "maio": 5,
+             "junho": 6, "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10,
+             "novembro": 11, "dezembro": 12}
+
+
 def parse_date(v: str) -> str | None:
     if not v:
         return None
@@ -136,6 +141,12 @@ def parse_date(v: str) -> str | None:
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})", s)
     if m:
         return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    # formato do formulário (data_e_hora): "17 de agosto de 2026 20:07"
+    m = re.match(r"(\d{1,2})\s+de\s+([A-Za-zçÇ]+)\s+de\s+(\d{4})", s, re.IGNORECASE)
+    if m:
+        mon = PT_MONTHS.get(strip_accents(m.group(2)).lower())
+        if mon:
+            return f"{int(m.group(3)):04d}-{mon:02d}-{int(m.group(1)):02d}"
     for fmt in ("%d/%m/%Y", "%m/%d/%Y", "%d/%m/%y", "%b %d, %Y", "%Y/%m/%d"):
         try:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
@@ -144,16 +155,45 @@ def parse_date(v: str) -> str | None:
     return None
 
 
+# --------------------------------------------------------------------------- #
+# Classificação por nome de campanha (funil + temperatura)
+# --------------------------------------------------------------------------- #
+# Critérios extraídos do Campaign Name / utm_campaign, usados pelos 2 seletores
+# (Funil · Temperatura) das tabelas de otimização no navegador.
+#   Funil:  DIAG (contém "DIAG") · APD-MUNDO (contém "MUNDO") ·
+#           APD-BR (contém "APD", ou tag antiga "[VERSALHES-APLICACAO" sem "MUNDO").
+#   Temp.:  Quente ("QUENTE"/"HOT") · Frio ("FRIO"/"COLD").
+def classify_funil(campaign: str) -> str:
+    c = (campaign or "").upper()
+    if "DIAG" in c:
+        return "DIAG"
+    if "MUNDO" in c:
+        return "APD-MUNDO"
+    if "APD" in c:
+        return "APD-BR"
+    if "VERSALHES" in c and "APLICA" in c:   # tag antiga sem "MUNDO" (já pego acima) => BR
+        return "APD-BR"
+    return "(outros)"
+
+
+def classify_temp(campaign: str) -> str:
+    c = (campaign or "").upper()
+    if "QUENTE" in c or re.search(r"\bHOT\b", c):
+        return "Quente"
+    if "FRIO" in c or re.search(r"\bCOLD\b", c):
+        return "Frio"
+    return "—"
+
+
 def is_test_lead(rowtext: str) -> bool:
     return "<test lead" in rowtext.lower()
 
 
-# <<PREENCHER: critério de MQL deste cliente>> — implementação de referência abaixo
-# usa uma coluna booleana "Sim/Não". Renomeie a função e ajuste conforme o critério
-# de qualificação do cliente (o exemplo abaixo qualifica pela coluna de MQL == "Sim").
+# Este cliente NÃO usa critério de MQL — a qualificação fica desligada (q=0 em
+# process()). Função mantida só por compatibilidade; nunca marca ninguém.
 def is_medico(v: str | None) -> bool:
-    """Critério de MQL: coluna de qualificação (<<PREENCHER: nome da coluna>>) == "Sim"."""
-    return norm(v) in ("sim", "s", "yes", "true", "1")
+    """Sem MQL neste cliente — sempre False."""
+    return False
 
 
 def pretty_specialty(v: str) -> str:
@@ -302,14 +342,19 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     sales_index = build_sales_index(sales_rows)
 
     cheader = conversas_rows[0] if conversas_rows else []
-    # <<PREENCHER: aliases da coluna de MQL do cliente>> — "medico" abaixo é o exemplo
-    # (ajuste os aliases e o índice de fallback ao cabeçalho da aba Conversas do cliente).
+    # Fonte principal = "Lista de Leads" (formulário Sala Secreta + leads Meta via utm_*).
+    # Sem coluna de MQL (cliente não qualifica) => is_medico fica sempre 0.
+    # utm_campaign traz o nome COMPLETO da campanha (ex. "ASP | E2-CAP | P1-QUENTE | ...")
+    # — dele saem funil/temperatura; utm_content é o anúncio; não há conjunto na aba.
     cidx = header_index(
         cheader,
-        {"created": ["data"], "phone": ["telefone"], "name": ["nome"],
-         "medico": ["e medico", "medico"], "campaign": ["campanha"],
-         "adset": ["conjunto"], "ad": ["anuncio"], "specialty": ["especialidades", "especialidade"]},
-        {"created": 0, "phone": 3, "name": 2, "medico": 4, "campaign": 8, "adset": 9, "ad": 10, "specialty": 11},
+        {"created": ["data_e_hora", "data"], "phone": ["telefone", "whatsapp"], "name": ["nome"],
+         "medico": ["__sem_mql__"], "campaign": ["utm_campaign", "campanha"],
+         "adset": ["utm_term"], "ad": ["utm_content", "anuncio"],
+         "source": ["utm_source"], "term": ["utm_term"],
+         "specialty": ["qual sua profissao", "profissao", "especialidade"]},
+        {"created": 9, "phone": 2, "name": 0, "medico": None, "campaign": 6, "adset": 7,
+         "ad": 5, "source": 4, "term": 7, "specialty": 3},
     )
 
     leads = []
@@ -340,16 +385,24 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             attributed_phones.add(phone)
             phone_attrib[phone] = {"src": src, "camp": camp, "adset": adset, "ad": ad, "d": conversa_date}
         specialty = pretty_specialty(cell(row, cidx["specialty"]))
+        # plataforma a partir do utm_term/utm_source (ex. "Instagram_Feed", "Facebook_Mobile_Feed")
+        plat_hint = norm(cell(row, cidx["term"]) + " " + cell(row, cidx["source"]))
+        plat = "ig" if "insta" in plat_hint else ("fb" if "face" in plat_hint else ("ig" if src == "meta" else "—"))
         leads.append({
             "d": parse_date(cell(row, cidx["created"])),
             "src": src,
-            "plat": "ig" if src == "meta" else "—",
+            "plat": plat,
             "camp": camp,
             "adset": adset,
             "ad": ad,
+            # funil/temperatura do lead (só quando há campanha atribuída) — usados
+            # pelos seletores das tabelas de otimização; lead sem campanha some do
+            # recorte quando um funil específico é escolhido (não pode ser reivindicado).
+            "funil": classify_funil(campaign_raw) if campaign_valid else "(sem)",
+            "temp": classify_temp(campaign_raw) if campaign_valid else "—",
             "prof": specialty,
             "bucket": specialty,
-            "q": 1 if is_medico(cell(row, cidx["medico"])) else 0,
+            "q": 0,          # cliente não usa MQL
             "utm": 1 if campaign_valid else 0,
             "nm": first_last_initial(cell(row, cidx["name"])),
             "em": "—",
@@ -393,13 +446,17 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
          "pv": ["landing page views", "page views", "pageviews"],
          # Cliente não tem evento "Initiate Checkout" configurado no pixel — usa
          # "Adds to Cart" como proxy de Checkout (decisão do cliente).
-         "chk": ["adds to cart", "add to cart", "initiate checkout", "checkouts iniciados", "checkouts"],
+         "chk": ["checkouts initiated", "adds to cart", "add to cart", "initiate checkout", "checkouts iniciados", "checkouts"],
+         # Vendas/Faturamento vêm do próprio Meta Ads (sem aba de Compradores):
+         "purch": ["purchases", "compras", "results"],
+         "rev": ["purchases conversion value", "conversion value", "subscribe conversion value", "faturamento"],
          # Link do criativo (ex. Instagram) — coluna opcional adicionada pelo cliente
          # na aba de mídia. Usada na aba Relatório (Top/Piores anúncios) para linkar
          # o anúncio. Aliases cobrem variações do cabeçalho.
          "link": ["creative instagram permalink", "instagram permalink", "permalink",
                   "creative link", "link do anuncio", "link do criativo"]},
-        {"day": 0, "campaign": 2, "adset": 3, "ad": 4, "spent": 5, "impr": 6, "clicks": 7, "leads": None, "pv": 8},
+        {"day": 0, "campaign": 1, "adset": 2, "ad": 3, "spent": 4, "impr": 5, "clicks": 6,
+         "pv": 7, "leads": 8, "chk": 9, "purch": 10, "rev": 11},
     )
 
     meta = []
@@ -414,17 +471,23 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
         link = cell(row, midx["link"])
         if link and ad not in ad_links:
             ad_links[ad] = link
+        camp_name = cell(row, midx["campaign"]) or "(sem campanha)"
         meta.append({
             "d": parse_date(cell(row, midx["day"])),
-            "camp": cell(row, midx["campaign"]) or "(sem campanha)",
+            "camp": camp_name,
             "adset": cell(row, midx["adset"]) or "(sem conjunto)",
             "ad": ad,
+            "funil": classify_funil(camp_name),
+            "temp": classify_temp(camp_name),
             "sp": round(to_float(cell(row, midx["spent"])), 4),
             "im": to_float(cell(row, midx["impr"])),
             "cl": to_float(cell(row, midx["clicks"])),
             "pv": to_float(cell(row, midx["pv"])),
             "ck": to_float(cell(row, midx["chk"])),
             "ml": to_float(cell(row, midx["leads"])),
+            # Vendas/Faturamento do próprio Meta Ads (Purchases / Purchases Conversion Value)
+            "vd": to_float(cell(row, midx["purch"])),
+            "fat": round(to_float(cell(row, midx["rev"])), 2),
         })
 
     # Leads (LP) — fonte antiga, fora de uso. Só contamos o total para
@@ -525,10 +588,16 @@ def main():
     ap.add_argument("--out", default="dist/index.html")
     args = ap.parse_args()
 
-    conversas_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_CONVERSAS), args.conversas_file)
-    meta_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_META), args.meta_file)
-    sales_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_SALES), args.sales_file)
-    leads_lp_rows = load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=GID_LEADS), args.leads_file)
+    def load_gid(gid, local):
+        # gid vazio (aba inexistente p/ este cliente) => sem fetch, lista vazia.
+        if not local and not gid:
+            return []
+        return load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID, gid=gid), local)
+
+    conversas_rows = load_gid(GID_CONVERSAS, args.conversas_file)
+    meta_rows = load_gid(GID_META, args.meta_file)
+    sales_rows = load_gid(GID_SALES, args.sales_file)
+    leads_lp_rows = load_gid(GID_LEADS, args.leads_file)
 
     data = process(conversas_rows, meta_rows, sales_rows, leads_lp_rows)
 
@@ -543,8 +612,9 @@ def main():
 
     b = data["build"]
     q = sum(l["q"] for l in data["leads"])
-    vd = sum(s["vendas"] for s in data["sales"])
-    fat = sum(s["fat"] for s in data["sales"])
+    # Vendas/Faturamento vêm do Meta Ads (Purchases / Purchases Conversion Value).
+    vd = sum(s["vendas"] for s in data["sales"]) + sum(m.get("vd", 0) for m in data["meta"])
+    fat = sum(s["fat"] for s in data["sales"]) + sum(m.get("fat", 0) for m in data["meta"])
     print("== build ok ==", file=sys.stderr)
     print(f"  periodo   : {b['date_min']} -> {b['date_max']}", file=sys.stderr)
     print(f"  leads MSG : {len(data['leads'])}  MQLs (qualificados): {q}", file=sys.stderr)

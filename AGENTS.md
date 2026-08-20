@@ -5,7 +5,7 @@
 > convenção `AGENTS.md`.
 >
 > **Este é um TEMPLATE limpo.** Todos os valores do cliente estão como
-> `<<PREENCHER: descrição>>`.
+> os valores do cliente.
 
 ## ✅ CHECKLIST DE NOVO CLIENTE (fazer em ordem)
 
@@ -46,7 +46,7 @@ coleta/redação dos Insights. Ver `GUIA-REPLICACAO.md` para os detalhes de
 implementação (filtro cruzado, engine de tabela, gráficos Chart.js).
 
 > `template.html` e `app.js` são engine, mas carregam o nome do cliente em pontos
-> pontuais (título/logo e um comentário) — já marcados como `<<PREENCHER>>`.
+> pontuais (título/logo e um comentário) — já marcados como marcadores.
 
 ## Específico do cliente (troca a cada replicação)
 `build/build.py`, `build/identidade-visual.css` (cores, se aplicável),
