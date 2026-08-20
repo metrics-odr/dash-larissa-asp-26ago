@@ -1,0 +1,62 @@
+name: Build & Deploy Dashboard
+
+# Dispara de 3 formas:
+#  - workflow_dispatch : chamado pelo cron-job.org a cada 30 min (via API do GitHub)
+#  - schedule          : backup nativo (o agendador do GitHub costuma atrasar; o
+#                        cron-job.org e a fonte principal de pontualidade)
+#  - push              : reconstroi quando o codigo muda
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+  push:
+    branches: [ main ]
+    paths:
+      - "build/**"
+      - ".github/workflows/deploy.yml"
+
+# Somente leitura do repo + permissao para publicar no Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Nunca roda dois deploys ao mesmo tempo; nao cancela um deploy em andamento
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build dashboard (le as planilhas via CSV publico, somente leitura)
+        run: python build/build.py --out dist/index.html
+
+      - name: Add .nojekyll
+        run: touch dist/.nojekyll
+
+      - name: Configure Pages (habilita automaticamente na 1a execucao)
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v5

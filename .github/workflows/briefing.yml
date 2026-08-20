@@ -1,0 +1,57 @@
+name: Coletar dados brutos do Relatório (pré-Insights)
+
+# Roda a coleta DETERMINÍSTICA (build/coletar_dados_relatorio.py) que agrega
+# só números (sem interpretação/texto) a partir dos mesmos dados do dashboard
+# (mídia paga x Leads) em build/relatorios_dados.json. NÃO chama nenhuma API
+# de IA/Anthropic — roda de graça no runner do GitHub Actions.
+#
+# É o insumo lido, ~9 minutos depois (23h59 BRT), por uma Routine do Claude
+# (Claude Code Remote, agendada fora do GitHub Actions) que lê esse JSON +
+# build/GUIA-RELATORIOS.md + build/GUIA-INTERPRETACAO-METRICAS.md e escreve o
+# texto final em build/relatorios.json — ver "Como build/relatorios.json é
+# gerado" no GUIA-RELATORIOS.md.
+#
+# build/relatorios_dados.json não é lido pelo site; ao commitar na main ele
+# só passa pelo path filter do deploy.yml (rebuild inofensivo/idempotente).
+on:
+  workflow_dispatch:
+  schedule:
+    # 1x ao dia, 23h50 horário de Brasília = 02h50 UTC (10 min antes da
+    # Routine do Claude escrever os Insights, garantindo dado fresco).
+    - cron: "50 2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gerar-briefing
+  cancel-in-progress: false
+
+jobs:
+  coletar-dados:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Coletar números do Relatório (sem IA, só aritmética)
+        run: python build/coletar_dados_relatorio.py --out build/relatorios_dados.json
+
+      - name: Commit e push se houve mudança
+        run: |
+          git add build/relatorios_dados.json
+          if git diff --cached --quiet -- build/relatorios_dados.json; then
+            echo "Sem mudanças em build/relatorios_dados.json — nada a commitar."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Atualiza dados brutos do Relatório (pré-Insights)"
+          git push origin HEAD:main

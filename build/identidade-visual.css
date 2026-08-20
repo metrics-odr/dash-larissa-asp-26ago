@@ -1,0 +1,64 @@
+/* ============================================================================
+   IDENTIDADE VISUAL — TODAS as cores da dashboard ficam AQUI.
+   Este arquivo NÃO tem lógica de dados nem layout: mexa aqui para trocar cores.
+   O tema CLARO é o padrão; o ESCURO é a versão alternativa (toggle).
+   ============================================================================ */
+
+/* ------------------------------ TEMA CLARO (padrão) ------------------------ */
+:root{
+  --text-primary:#1A1D2E; --bg:#F4F5F8; --surface:#FFFFFF; --border:#E6E8EE;
+  --muted:#6B7280; --ink:#1A1D2E; --selected:#DBEAFE;
+  --accent-blue:#3B5BDB; --accent-blue-light:#EEF2FF;
+  --good:#0CA30C; --bad:#E34948; --yellow:#E8A400; --aqua:#1BAF7A; --red:#E34948; --black:#1A1D2E;
+  --grid:#EEF0F5; --thead:#F5F7FB; --tfoot:#EEF1F7;
+  /* séries de gráfico (paleta) */
+  --cc1:#3B5BDB; --cc2:#1BAF7A; --cc3:#E34948; --cc4:#E8A400; --cc5:#8AA0F0;
+  --cc6:#9B59B6; --cc7:#16A085; --cc8:#E67E22; --cc9:#F97316; --cc10:#6366F1;
+  /* linhas semânticas dos gráficos (Leads/MQLs/Gasto/CPL/CPMQL) */
+  --chart-leads:#3B5BDB; --chart-mqls:#0891B2; --chart-gasto:#E34948;
+  --chart-cpl:#1A1D2E; --chart-cpmql:#E8A400;
+  /* barras auxiliares */
+  --bar-q:#1BAF7A; --bar-noq:#B3B1A8;
+  /* heatmap por coluna (uma cor fixa por métrica; a opacidade varia no JS) */
+  --heat-gasto:#E34948; --heat-leads:#3B5BDB; --heat-mqls:#0891B2; --heat-roas:#FFD400; --heat-vendas:#1BAF7A;
+  /* destaque de etapas do funil (Mar01): MQL azulado · Gasto avermelhado · Faturamento/Receita esverdeado */
+  --step-mql-bg:#EAF0FF; --step-mql-bd:#3B5BDB;
+  --step-gasto-bg:#FDECEC; --step-gasto-bd:#E34948;
+  --step-fat-bg:#E9F9EE; --step-fat-bd:#0CA30C;
+}
+
+/* ------------------------------ TEMA ESCURO (toggle) ----------------------- */
+:root[data-theme="dark"]{
+  --text-primary:#0A0C11;      /* fundo da sidebar (mais escuro que o fundo principal) */
+  --bg:#0F1117;                /* Fundo principal */
+  --surface:#171A22;           /* Cards */
+  --border:#2A2F3A;            /* Bordas */
+  --ink:#F2F3F5;               /* Texto principal */
+  --muted:#9AA1AD;             /* Texto secundário */
+  --accent-blue:#5B7BF0;       /* Accent: botões, links, abas ativas, foco */
+  --accent-blue-light:#1B2440; /* fundo sutil azulado: badges, hover de linha, hero */
+  --selected:#26365F;          /* Linha selecionada */
+  --good:#22C55E;              /* Positivo */
+  --bad:#EF4444;               /* Negativo */
+  --red:#EF4444;
+  --yellow:#F59E0B;            /* Alerta */
+  --aqua:#06B6D4;              /* Info */
+  --black:#0F1117;
+  --grid:#252A34;              /* Linhas do gráfico */
+  --thead:#1E222C;             /* Cabeçalho de tabela */
+  --tfoot:#1B1F27;
+  /* PALETA dos GRÁFICOS — mais vívida/saturada (até 10 séries) */
+  --cc1:#2F6BFF; --cc2:#16D66B; --cc3:#FF3B47; --cc4:#FFB020; --cc5:#9D5CFF;
+  --cc6:#1FD5EC; --cc7:#FF4D8D; --cc8:#9BE015; --cc9:#FF8A1F; --cc10:#6D7BFF;
+  /* linhas semânticas dos gráficos (vívidas) */
+  --chart-leads:#2F6BFF; --chart-mqls:#22D3EE; --chart-gasto:#FF3B47;
+  --chart-cpl:#F2F3F5; --chart-cpmql:#FFB020;
+  /* barras auxiliares */
+  --bar-q:#16D66B; --bar-noq:#5A6070;
+  /* heatmap por coluna: Gasto vermelho · Leads azul · MQLs ciano · Vendas verde · ROAS amarelo */
+  --heat-gasto:#EF4444; --heat-leads:#3B82F6; --heat-mqls:#22D3EE; --heat-roas:#FFD400; --heat-vendas:#22C55E;
+  /* destaque de etapas do funil (Mar01): MQL azulado · Gasto avermelhado · Faturamento/Receita esverdeado */
+  --step-mql-bg:#16233F; --step-mql-bd:#5B7BF0;
+  --step-gasto-bg:#3A1D20; --step-gasto-bd:#EF4444;
+  --step-fat-bg:#132B1D; --step-fat-bd:#22C55E;
+}

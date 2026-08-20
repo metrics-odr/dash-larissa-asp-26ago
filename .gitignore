@@ -1,0 +1,10 @@
+# Saida gerada pelo build (o GitHub Actions reconstroi a cada execucao)
+dist/
+
+# Node / Python locais
+node_modules/
+__pycache__/
+*.pyc
+
+# CSVs baixados para teste local
+*.csv
