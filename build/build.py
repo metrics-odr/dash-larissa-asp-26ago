@@ -121,6 +121,10 @@ def to_float(v) -> float:
         s = s.replace(".", "").replace(",", ".")
     elif "," in s:
         s = s.replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):
+        # pt-BR: ponto isolado sem vírgula é separador de milhar (ex. "3.073" = 3073),
+        # nunca separador decimal (decimal em pt-BR sempre usa vírgula).
+        s = s.replace(".", "")
     try:
         return float(s)
     except ValueError:
