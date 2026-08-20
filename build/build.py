@@ -56,7 +56,7 @@ MAIN_PRODUCT = "Acenda Seu Propósito"
 MAIN_PRODUCT_PREFIX = "ASP"
 
 BRT = timezone(timedelta(hours=-3))   # horario de Brasilia (exibicao)
-TAX_FACTOR = 1.0   # sem imposto de mídia neste cliente
+TAX_FACTOR = 1.13806   # imposto de mídia de 13,806% sobre o gasto (toggle "Imposto Meta")
 
 # --------------------------------------------------------------------------- #
 # Regras da aba Relatório (Top/Piores anúncios)
