@@ -109,6 +109,16 @@
   .trio > .card{display:flex; flex-direction:column; min-width:0}
   .trio > .card > .chart-box, .trio > .card > .donut-wrap, .trio > .card > .tbl-wrap{flex:1 1 auto; min-height:0}
   .row4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; align-content:start}
+  .row2{display:grid; grid-template-columns:1fr 1.2fr; gap:16px; align-items:stretch}
+  .row2 > .card{display:flex; flex-direction:column; min-width:0}
+  .row2 > .card > .chart-box, .row2 > .card > .tbl-wrap{flex:1 1 auto; min-height:0}
+  @media(max-width:1000px){.row2{grid-template-columns:1fr}}
+  /* seletores de otimização (Funil · Temperatura) */
+  .opt-filters{display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px; margin:0 0 14px}
+  .opt-filter{display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted); font-weight:600}
+  .opt-filter select{font-size:13px; color:var(--ink); background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:7px 10px; min-width:170px; cursor:pointer}
+  .opt-filters-hint{font-size:11px; color:var(--muted); align-self:center; flex:1 1 200px}
   @media(max-width:1000px){.two-col,.three-col,.funnel-grid{grid-template-columns:1fr}}
   @media(max-width:1200px){.funnel-charts{grid-template-columns:1fr}}
   @media(max-width:1200px){.trio{grid-template-columns:1fr} .row4{grid-template-columns:1fr 1fr}}

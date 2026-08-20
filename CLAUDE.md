@@ -5,14 +5,14 @@
 > de mensagens anteriores. Mantenha-o atualizado.
 >
 > **Este é um TEMPLATE limpo.** Todos os valores específicos do cliente estão
-> marcados como `<<PREENCHER: descrição>>`. Siga o CHECKLIST abaixo para
+> marcados como os valores do cliente. Siga o CHECKLIST abaixo para
 > configurar um cliente novo.
 
 ---
 
 ## ✅ CHECKLIST DE NOVO CLIENTE (fazer em ordem)
 
-Preencha cada `<<PREENCHER: …>>` do repositório. Ordem sugerida:
+Preencha cada marcador do repositório. Ordem sugerida:
 
 1. **`build/build.py` — constantes do topo:**
    - `SPREADSHEET_ID` — ID da planilha central do Google Sheets do cliente.
@@ -66,24 +66,24 @@ puro + Chart.js via CDN) publicado no **GitHub Pages**, que cruza a lista de
 **Leads** com o gerenciador de mídia paga e se atualiza sozinho a cada ~30 min
 (build 100% na nuvem via GitHub Actions, disparado externamente pelo cron-job.org).
 
-- **URL pública:** `https://<<PREENCHER: owner do GitHub>>.github.io/<<PREENCHER: nome do repositório>>/`
+- **URL pública:** `https://metrics-odr.github.io/dash-larissa-asp-26ago/`
 - **Somente leitura** das planilhas. Nunca escrever de volta.
 
 ## Fontes de dados (Google Sheets)
 
-Spreadsheet ID: `<<PREENCHER: SPREADSHEET_ID>>` ("<<PREENCHER: nome da planilha central>>").
+Spreadsheet ID: `1aySlj8ryPjXICkRFT6SiFnEZC7z0NkN755jtoAbqQDI` ("ASP | Planilha Central de Lançamento Clássico").
 
 | Aba | gid | Colunas usadas |
 |-----|-----|----------------|
-| **Conversas** (fonte principal — webhook de mensageria/WhatsApp) | `<<PREENCHER: GID_CONVERSAS>>` | `Data` · `Mensagem` · `Nome` · `Telefone` · coluna de MQL · `Campanha` · `Conjunto` · `Anúncio` · `Especialidades` |
-| **Leads** (legado — popup/form antigo, só contada) | `<<PREENCHER: GID_LEADS>>` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
-| **Meta Ads** | `<<PREENCHER: GID_META>>` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
-| **New Subscriptions** (Compradores) | `<<PREENCHER: GID_SALES>>` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
+| **Conversas** (fonte principal — webhook de mensageria/WhatsApp) | `1836439885` | `Data` · `Mensagem` · `Nome` · `Telefone` · coluna de MQL · `Campanha` · `Conjunto` · `Anúncio` · `Especialidades` |
+| **Leads** (legado — popup/form antigo, só contada) | `— (não usado)` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
+| **Meta Ads** | `1059708846` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
+| **New Subscriptions** (Compradores) | `— (não usado)` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
 ### Regra de Lead Qualificado (MQL)
-Coluna de qualificação (<<PREENCHER: nome da coluna de MQL, ex. "É médico?">>) == "Sim".
+Coluna de qualificação (— (cliente não usa MQL)) == "Sim".
 Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`app.js`,
 `renderGeralCore`) colore verde/cinza pelo mesmo critério, usando a coluna
 `Especialidades`/`Especialidade` como dimensão.
@@ -115,16 +115,16 @@ vendas ficaram sem anúncio de origem. **Não** usa as colunas `Compra Detectada
 do zero, mais robusto a erro de fórmula).
 
 ### Imposto da mídia paga
-`TAX_FACTOR` em `build.py` (`<<PREENCHER: fator, ex. 1.13806>>`). O toggle
+`TAX_FACTOR` em `build.py` (`1.0 — sem imposto`). O toggle
 "Imposto Meta" fica **ativo por padrão** (`STATE.tax=true` em `app.js`) e aplica
 o fator em todo o gasto/derivados (CPL, CPMQL, CAC etc.); desativar o toggle
 volta ao gasto sem imposto. Se o cliente não tiver imposto, use `TAX_FACTOR = 1.0`.
 
 ### Convenções de campanha (do cliente)
-Todas as campanhas usam o prefixo `<<PREENCHER: MAIN_PRODUCT_PREFIX>>`
+Todas as campanhas usam o prefixo `ASP`
 (`MAIN_PRODUCT_PREFIX`), sem filtrar por sub-funil — mantém TODAS as campanhas
 no dashboard. Ajuste o prefixo e, se o cliente usar siglas de etapa
-(ex. `<<PREENCHER: siglas de etapa, se houver>>`), documente-as aqui. A Conversas
+(ex. `E2-CAP, E3, E4-APLICACAO`), documente-as aqui. A Conversas
 já traz `Campanha`/`Conjunto`/`Anúncio` prontos (nomes idênticos ao
 `Campaign Name`/`Ad Set Name`/`Ad Name` do Meta Ads) — `build.py` só copia esses
 valores, sem precisar de UTM nessa aba.

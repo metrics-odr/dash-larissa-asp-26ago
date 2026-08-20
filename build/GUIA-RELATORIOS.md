@@ -73,23 +73,20 @@ os Insights.
 
 ## Contexto do funil
 
-**Funil de High Ticket (<<PREENCHER: nome do cliente>>)** — <<PREENCHER: descrição
-curta do cliente/oferta>>. Funil de captura via WhatsApp com venda 1:1 (comercial
-fecha por conversa/reunião, não carrinho direto): o anúncio no Meta Ads leva
-a uma página de captura com botão do WhatsApp; ao clicar, o lead chama no
-WhatsApp Business do cliente e o webhook de mensageria dispara na 1ª mensagem,
-que cai na aba **Conversas** (fonte principal de leads deste dashboard). O
-critério de qualificação (MQL) é <<PREENCHER: critério de MQL do cliente, ex.
-"o lead ser médico">> — se qualificado, segue a conversa com o comercial até a
-venda (registrada na aba de Compradores e cruzada de volta ao anúncio por telefone).
+**Funil "Acenda Seu Propósito" (Larissa Topper · Sala Secreta)** — funil de
+captura de leads para a Sala Secreta. O anúncio no Meta Ads leva a uma página
+de captura; o lead preenche o formulário e entra na **Lista de Leads** (fonte
+principal deste dashboard). **Este cliente NÃO usa critério de MQL** — não há
+cards nem métricas de qualificação. Vendas/Faturamento vêm das colunas
+Purchases / Purchases Conversion Value do próprio Meta Ads.
 
 ```
-Impressões → Cliques/abertura do WhatsApp → Leads → MQLs → Vendas → Faturamento
+Impressões → Cliques → Página → Leads → (Sala Secreta) → Vendas → Faturamento
 ```
 
-- **MQL** = coluna de qualificação (<<PREENCHER: nome da coluna de MQL>>) == "Sim" (ver `build.py` → `is_medico`).
-- **Agendamento** = o lead qualificado marcou horário de reunião com o comercial.
-- **Reunião Realizada** = a reunião de fato aconteceu (o lead compareceu). O
+- **Funil / Temperatura** = classificados pelo nome da campanha (DIAG · APD-BR ·
+  APD-MUNDO; Quente · Frio) — ver `build.py` → `classify_funil` / `classify_temp`.
+- **Sala Secreta / presença** = entra quando a base de presentes for enviada.
   inverso disso é o **No‑Show** (agendou e não compareceu) — a métrica de alerta
   mais importante entre Agendamento e Venda.
 
