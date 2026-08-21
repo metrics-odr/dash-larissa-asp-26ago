@@ -180,7 +180,12 @@
   .tbl-wrap::-webkit-scrollbar-corner{background:transparent}
   .tbl-normal{max-height:250px}
   .tbl-double{max-height:420px}
-  table.dt{border-collapse:separate; border-spacing:0; min-width:100%; font-size:12.5px; table-layout:fixed}
+  /* sem min-width:100% aqui: a largura já vem explícita do JS (soma das colunas —
+     table.style.width). Com table-layout:fixed, min-width:100% forçava a tabela a
+     esticar até a largura do card quando a soma das colunas era menor, e o navegador
+     jogava a sobra na ÚLTIMA coluna (ex. ROAS), abrindo um vão em branco à direita
+     (tabelas "fit" continuam com width:100% próprio, abaixo). */
+  table.dt{border-collapse:separate; border-spacing:0; font-size:12.5px; table-layout:fixed}
   table.dt th, table.dt td{padding:7px 10px; border-bottom:1px solid var(--border); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   table.dt thead th{position:sticky; top:0; z-index:2; background:var(--thead); color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; text-align:right; cursor:pointer; user-select:none}
   table.dt thead th .rsz{position:absolute; right:0; top:0; width:9px; height:100%; cursor:col-resize; z-index:3}
