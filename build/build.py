@@ -349,12 +349,14 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     # Fonte principal = "Lista de Leads" (formulário Sala Secreta + leads Meta via utm_*).
     # Sem coluna de MQL (cliente não qualifica) => is_medico fica sempre 0.
     # utm_campaign traz o nome COMPLETO da campanha (ex. "ASP | E2-CAP | P1-QUENTE | ...")
-    # — dele saem funil/temperatura; utm_content é o anúncio; não há conjunto na aba.
+    # — dele saem funil/temperatura; utm_content é o anúncio; conjunto vem de
+    # utm_medium (utm_term traz o PLACEMENT, ex. "Instagram_Reels", "Facebook_Mobile_Feed" —
+    # usado só no hint de plataforma abaixo, nunca como conjunto).
     cidx = header_index(
         cheader,
         {"created": ["data_e_hora", "data"], "phone": ["telefone", "whatsapp"], "name": ["nome"],
          "medico": ["__sem_mql__"], "campaign": ["utm_campaign", "campanha"],
-         "adset": ["utm_term"], "ad": ["utm_content", "anuncio"],
+         "adset": ["utm_medium"], "ad": ["utm_content", "anuncio"],
          "source": ["utm_source"], "term": ["utm_term"],
          "specialty": ["qual sua profissao", "profissao", "especialidade"]},
         {"created": 9, "phone": 2, "name": 0, "medico": None, "campaign": 6, "adset": 7,
