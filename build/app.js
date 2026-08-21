@@ -285,9 +285,17 @@ function renderSplitTable(cfg){
   const fmt=(t,v)=> t==='brl'?brl(v):t==='pct'?pct(v):t==='int'?intf(v):t==='num'?numf(v):t==='date'?brdate(v):t==='html'?(v==null?'-':String(v)):dimf(v);
   const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
   const leftCols=cfg.cols.filter(c=>c.band==='l'), rightCols=cfg.cols.filter(c=>c.band==='r'), midCols=cfg.cols.filter(c=>!c.band);
-  function section(cols){
-    const widths=cols.map(c=>colWidth(cfg,c)); const totalW=widths.reduce((a,b)=>a+b,0);
-    const colgroup='<colgroup>'+cols.map((c,i)=>`<col style="width:${widths[i]}px">`).join('')+'</colgroup>';
+  // fill=true (só na banda do meio): a tabela ocupa 100% da seção flex quando
+  // sobra espaço (evita o vão branco à direita depois da última coluna), com
+  // larguras em % pra o excedente se distribuir POR IGUAL entre as colunas —
+  // nunca todo empilhado na última (ex. ROAS). min-width:totalW mantém o scroll
+  // horizontal quando os nomes/colunas não cabem.
+  function section(cols,fill){
+    const widths=cols.map(c=>colWidth(cfg,c)); const totalW=widths.reduce((a,b)=>a+b,0)||1;
+    const colgroup='<colgroup>'+cols.map((c,i)=>{
+      const w=fill?(widths[i]/totalW*100).toFixed(3)+'%':widths[i]+'px';
+      return `<col style="width:${w}">`;
+    }).join('')+'</colgroup>';
     const thead='<thead><tr>'+cols.map(c=>{
       const sc = sortState&&sortState.key===c.key ? (sortState.dir==='asc'?'sorted-asc':'sorted-desc') : '';
       return `<th class="${c.type==='dim'?'dim ':''}${sc}" data-k="${c.key}" title="${esc(c.label)}">${c.label}<span class="rsz"></span></th>`;
@@ -308,7 +316,8 @@ function renderSplitTable(cfg){
       const v=cfg.total[c.key]; const isFirst=cfg.cols.indexOf(c)===0&&v==null;
       return `<td class="${c.type==='dim'?'dim':''}" title="${isFirst?'Total Geral':esc(fmtStd(c.type,v))}">${isFirst?'Total Geral':fmt(c.type,v)}</td>`;
     }).join('')+'</tr></tfoot>'; }
-    return `<table class="dt${cfg.center?' dt-center':''}" style="width:${totalW}px">${colgroup}${thead}${tbody}${tfoot}</table>`;
+    const wStyle=fill?`width:100%;min-width:${totalW}px`:`width:${totalW}px`;
+    return `<table class="dt${cfg.center?' dt-center':''}" style="${wStyle}">${colgroup}${thead}${tbody}${tfoot}</table>`;
   }
   // altura de cada seção = a mesma altura máxima do .tbl-wrap ancestral
   // (tbl-normal/tbl-double/inline) — rolam juntas dentro do mesmo limite
@@ -322,7 +331,7 @@ function renderSplitTable(cfg){
   root.outerHTML =
     `<div id="${cfg.id}" class="dt-split">`+
       `<div class="dt-split-fixed dt-split-l"${hStyle}>${section(leftCols)}</div>`+
-      `<div class="dt-split-scroll"${hStyle}>${section(midCols)}</div>`+
+      `<div class="dt-split-scroll"${hStyle}>${section(midCols,true)}</div>`+
       `<div class="dt-split-fixed dt-split-r"${hStyle}>${section(rightCols)}</div>`+
     `</div>`;
   const fresh=document.getElementById(cfg.id);

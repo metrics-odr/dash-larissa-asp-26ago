@@ -232,7 +232,13 @@
      (filtra a tabela/gráfico igual clicar na linha da tabela). Rola dentro de si
      mesma (vertical se houver muitos membros; horizontal se um nome for maior
      que a largura do painel) — nunca a página. */
-  .chart-legend{max-height:150px; overflow:auto; font-size:11.5px; border-top:1px solid var(--border); padding-top:6px}
+  .chart-legend{max-height:150px; overflow:auto; font-size:11.5px; border-top:1px solid var(--border); padding-top:6px;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent}
+  .chart-legend::-webkit-scrollbar{width:7px; height:7px}
+  .chart-legend::-webkit-scrollbar-track{background:transparent}
+  .chart-legend::-webkit-scrollbar-thumb{background:var(--border); border-radius:999px; border:2px solid transparent; background-clip:padding-box}
+  .chart-legend::-webkit-scrollbar-thumb:hover{background:var(--muted); background-clip:padding-box}
+  .chart-legend::-webkit-scrollbar-corner{background:transparent}
   .chart-legend .cl-row{display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px;
     cursor:pointer; white-space:nowrap}
   .chart-legend .cl-row:hover{background:var(--accent-blue-light)}
