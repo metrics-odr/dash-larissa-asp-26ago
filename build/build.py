@@ -109,6 +109,23 @@ def norm(s: str | None) -> str:
     return strip_accents((s or "").strip().lower())
 
 
+def clean_name(s: str | None) -> str:
+    """Normaliza um nome de campanha/conjunto/anúncio para que o MESMO nome vindo
+    da aba Meta Ads (com gasto) e da aba de Leads (utm_campaign/medium/content)
+    gere SEMPRE a mesma chave de agregação no navegador (buildAgg usa o nome como
+    chave). Sem isso, uma diferença INTERNA de espaçamento — espaço duplo, tab, ou
+    espaço não-quebrável (NBSP) em volta dos "|" — faz o dashboard registrar a
+    campanha como DUAS linhas distintas: uma com o gasto (Meta) e outra zerada
+    (Leads). `cell()` só apara as pontas (.strip()), então essa diferença interna
+    passava batido. Aqui trocamos qualquer sequência de espaços (inclui NBSP/tab)
+    por UM espaço comum e aparamos as pontas, preservando o texto visível — a
+    chave continua sendo o nome exibido, só que canônico."""
+    if not s:
+        return ""
+    # \s (str/Python 3) já cobre NBSP (U+00A0), tab, quebras e espaços unicode.
+    return re.sub(r"\s+", " ", str(s)).strip()
+
+
 def to_float(v) -> float:
     if v is None:
         return 0.0
@@ -408,9 +425,13 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     for row in rows_sorted:
         if is_test_lead(" ".join(str(c) for c in row)):
             continue
-        campaign_raw = cell(row, cidx["campaign"])
+        # clean_name(): mesma canonização de espaçamento aplicada à aba Meta Ads
+        # (ver process() abaixo) — é o que garante que "…| 2026-08-23 | Escala"
+        # da utm_campaign case com o mesmo nome vindo do Meta e o gasto entre na
+        # linha certa, em vez de criar uma campanha "fantasma" zerada.
+        campaign_raw = clean_name(cell(row, cidx["campaign"]))
         source_raw = cell(row, cidx["source"])
-        adset_raw = cell(row, cidx["adset"])
+        adset_raw = clean_name(cell(row, cidx["adset"]))
         term_raw = cell(row, cidx["term"])
         campaign_valid = valid_utm(campaign_raw)
         # "Certeza que é do Meta" (regra do cliente): só entra no painel de mídia
@@ -424,7 +445,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
         phone = canon_phone(cell(row, cidx["phone"]))
         camp = campaign_raw if is_meta else "(sem campanha)"
         adset = adset_raw if is_meta else "(sem conjunto)"
-        ad = cell(row, cidx["ad"]) if is_meta else "(sem anúncio)"
+        ad = clean_name(cell(row, cidx["ad"])) if is_meta else "(sem anúncio)"
         conversa_date = parse_date(cell(row, cidx["created"]))
         if phone and phone not in attributed_phones:
             attributed_phones.add(phone)
@@ -519,15 +540,18 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     for row in meta_rows[1:]:
         if not any((c or "").strip() for c in row):
             continue
-        ad = cell(row, midx["ad"]) or "(sem anúncio)"
+        # clean_name(): canoniza o espaçamento do nome (espaço duplo/NBSP em volta
+        # dos "|") para casar com o mesmo nome vindo da aba de Leads — sem isso a
+        # campanha se divide em duas linhas no dashboard (uma com gasto, uma zerada).
+        ad = clean_name(cell(row, midx["ad"])) or "(sem anúncio)"
         link = cell(row, midx["link"])
         if link and ad not in ad_links:
             ad_links[ad] = link
-        camp_name = cell(row, midx["campaign"]) or "(sem campanha)"
+        camp_name = clean_name(cell(row, midx["campaign"])) or "(sem campanha)"
         meta.append({
             "d": parse_date(cell(row, midx["day"])),
             "camp": camp_name,
-            "adset": cell(row, midx["adset"]) or "(sem conjunto)",
+            "adset": clean_name(cell(row, midx["adset"])) or "(sem conjunto)",
             "ad": ad,
             "funil": classify_funil(camp_name),
             "temp": classify_temp(camp_name),
