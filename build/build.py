@@ -257,6 +257,35 @@ def valid_utm(campaign: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# Origem do lead: "certeza que é do Meta" vs. link na bio / orgânico
+# --------------------------------------------------------------------------- #
+# O painel de mídia paga (aba "Captura Meta Ads") só pode contar leads que temos
+# CERTEZA que vieram do tráfego pago do Meta. Leads do LINK NA BIO (perfil do
+# Instagram) e de fontes orgânicas costumam chegar com utm_source/utm_medium/
+# utm_campaign marcados como "bio", "linktree", "organic" etc. — NÃO são clique
+# em anúncio pago, então NÃO entram no funil de mídia paga (mas continuam
+# contando na Visão Geral, como orgânicos).
+#
+# Tokens abaixo são casados por PALAVRA (split em não-alfanumérico), então
+# "link na bio", "link-in-bio", "utm_medium=bio" batem em "bio", sem
+# falso-positivo dentro de nomes de campanha paga (ex.: "ASP | E2-CAP | ...").
+# Ajuste/expanda a lista conforme as convenções reais de UTM do cliente — o
+# build loga quantos leads caíram em cada origem (ver process()).
+ORGANIC_TOKENS = {
+    "bio", "linkbio", "linkinbio", "linktree", "instabio", "beacons",
+    "perfil", "profile", "organic", "organico", "organica",
+}
+
+
+def is_organic_source(*vals) -> bool:
+    """True quando o lead veio do link na bio / fonte orgânica (não é clique em
+    anúncio pago do Meta). Inspeciona utm_source/utm_medium/utm_campaign/utm_term
+    normalizados, casando qualquer TOKEN contra ORGANIC_TOKENS."""
+    text = norm(" ".join(str(v or "") for v in vals))
+    return any(t in ORGANIC_TOKENS for t in re.split(r"[^a-z0-9]+", text) if t)
+
+
+# --------------------------------------------------------------------------- #
 # Indexacao das colunas
 # --------------------------------------------------------------------------- #
 def header_index(header, wanted, fallback):
@@ -380,12 +409,22 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
         if is_test_lead(" ".join(str(c) for c in row)):
             continue
         campaign_raw = cell(row, cidx["campaign"])
+        source_raw = cell(row, cidx["source"])
+        adset_raw = cell(row, cidx["adset"])
+        term_raw = cell(row, cidx["term"])
         campaign_valid = valid_utm(campaign_raw)
-        src = "meta" if campaign_valid else "org"
+        # "Certeza que é do Meta" (regra do cliente): só entra no painel de mídia
+        # paga o lead que tem utm_source presente E NÃO é link na bio / orgânico.
+        # Leads sem UTM (utm_source vazio) e da bio caem em "org" — contam só na
+        # Visão Geral (que exibe TODOS os leads da planilha), nunca no Meta.
+        has_source = bool(norm(source_raw))
+        organic = is_organic_source(source_raw, adset_raw, campaign_raw, term_raw)
+        is_meta = campaign_valid and has_source and not organic
+        src = "meta" if is_meta else "org"
         phone = canon_phone(cell(row, cidx["phone"]))
-        camp = campaign_raw if campaign_valid else "(sem campanha)"
-        adset = cell(row, cidx["adset"]) if campaign_valid else "(sem conjunto)"
-        ad = cell(row, cidx["ad"]) if campaign_valid else "(sem anúncio)"
+        camp = campaign_raw if is_meta else "(sem campanha)"
+        adset = adset_raw if is_meta else "(sem conjunto)"
+        ad = cell(row, cidx["ad"]) if is_meta else "(sem anúncio)"
         conversa_date = parse_date(cell(row, cidx["created"]))
         if phone and phone not in attributed_phones:
             attributed_phones.add(phone)
@@ -404,8 +443,8 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             # funil/temperatura do lead (só quando há campanha atribuída) — usados
             # pelos seletores das tabelas de otimização; lead sem campanha some do
             # recorte quando um funil específico é escolhido (não pode ser reivindicado).
-            "funil": classify_funil(campaign_raw) if campaign_valid else "(sem)",
-            "temp": classify_temp(campaign_raw) if campaign_valid else "—",
+            "funil": classify_funil(campaign_raw) if is_meta else "(sem)",
+            "temp": classify_temp(campaign_raw) if is_meta else "—",
             "prof": specialty,
             "bucket": specialty,
             "q": 0,          # cliente não usa MQL
@@ -442,6 +481,13 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             })
 
     log_unmatched_sales(sales_index, phone_attrib)
+
+    # Diagnóstico da origem dos leads: quantos são "certeza Meta" (entram no
+    # painel de mídia paga) vs. link na bio / sem UTM (só na Visão Geral).
+    n_meta = sum(1 for l in leads if l["src"] == "meta")
+    n_org = len(leads) - n_meta
+    print(f"  leads Meta (utm_source, entram no painel Meta): {n_meta}", file=sys.stderr)
+    print(f"  leads bio/sem-UTM (só Visão Geral, fora do Meta): {n_org}", file=sys.stderr)
 
     mheader = meta_rows[0] if meta_rows else []
     midx = header_index(

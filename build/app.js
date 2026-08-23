@@ -326,6 +326,26 @@ function renderSplitTable(cfg){
       `<div class="dt-split-fixed dt-split-r"${hStyle}>${section(rightCols)}</div>`+
     `</div>`;
   const fresh=document.getElementById(cfg.id);
+  // Preenche a seção do MEIO até a largura do card: distribui a sobra
+  // proporcionalmente entre as colunas, calculando a soma EXATA em JS (o
+  // navegador não decide nada — some certinho). Assim nunca sobra um vão em
+  // branco à direita nem a última coluna (ROAS) incha sozinha. Se as colunas já
+  // não couberem, mantém a soma e deixa rolar horizontalmente.
+  function fitMid(){
+    const scroll=fresh.querySelector('.dt-split-scroll'); if(!scroll) return;
+    const tbl=scroll.querySelector('table'); if(!tbl) return;
+    const colEls=[...tbl.querySelector('colgroup').children]; if(!colEls.length) return;
+    let ws=colEls.map(col=>parseFloat(col.style.width)||col.offsetWidth||60);
+    const cur=ws.reduce((a,b)=>a+b,0), avail=scroll.clientWidth;
+    scroll.dataset.avail=avail;
+    if(avail>cur+0.5){
+      const factor=avail/cur; let acc=0;
+      ws=ws.map((w,i)=> i===ws.length-1 ? (avail-acc) : (acc+=Math.round(w*factor), Math.round(w*factor)) );
+      colEls.forEach((col,i)=>col.style.width=ws[i]+'px');
+      tbl.style.width=avail+'px';
+    } else { tbl.style.width=cur+'px'; }
+  }
+  fitMid();
   // as 3 seções rolam verticalmente cada uma por conta própria (CSS acima) —
   // sincroniza scrollTop entre elas pra se comportarem como 1 tabela só,
   // não importa sobre qual seção o mouse rolou.
@@ -347,17 +367,35 @@ function renderSplitTable(cfg){
     });
   });
   // resize: cada coluna só afeta a largura da SUA seção (as 3 tabelas são
-  // independentes, então redimensionar ao vivo não desalinha nada)
+  // independentes, então redimensionar ao vivo não desalinha nada).
+  // Na seção do MEIO a regra é diferente: arrastar uma coluna ROUBA a
+  // largura da coluna vizinha, mantendo o TOTAL da tabela igual — assim dá pra
+  // ajustar as colunas do meio sem nunca reduzir a largura total nem reabrir o
+  // vão à direita. A última coluna e as bandas fixas (dim/gasto) crescem a
+  // tabela como antes, mas travadas pra nunca ficarem menores que o card.
   fresh.querySelectorAll('thead th .rsz').forEach(g=>{
     g.addEventListener('mousedown',e=>{ e.preventDefault(); e.stopPropagation();
       const th=g.parentElement, k=th.dataset.k, x0=e.clientX;
       const sectionTable=th.closest('table'), ths=[...th.parentElement.children];
-      const ci=ths.indexOf(th), col=sectionTable.querySelector('colgroup').children[ci];
-      const w0=col.offsetWidth, tw0=sectionTable.offsetWidth;
+      const ci=ths.indexOf(th), colEls=[...sectionTable.querySelector('colgroup').children];
+      const col=colEls[ci], w0=col.offsetWidth, tw0=sectionTable.offsetWidth;
+      const scroll=sectionTable.closest('.dt-split-scroll');
+      const isMid=!!scroll, avail=scroll?(parseFloat(scroll.dataset.avail)||scroll.clientWidth):0;
+      // vizinho que cede/recebe largura (só no meio, e só se NÃO for a última coluna)
+      const nbr=(isMid && ci<colEls.length-1) ? colEls[ci+1] : null;
+      const wn0=nbr?nbr.offsetWidth:0;
+      const saveW=(cel,px)=>{ const kk=ths[colEls.indexOf(cel)].dataset.k; STATE.colw[cfg.id]=STATE.colw[cfg.id]||{}; STATE.colw[cfg.id][kk]=px; };
       document.body.style.userSelect='none';
-      const mv=ev=>{ const nw=Math.max(60,w0+(ev.clientX-x0)); col.style.width=nw+'px'; sectionTable.style.width=(tw0-w0+nw)+'px';
-        STATE.colw[cfg.id]=STATE.colw[cfg.id]||{}; STATE.colw[cfg.id][k]=nw; };
-      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
+      const mv=ev=>{ const dx=ev.clientX-x0;
+        if(nbr){ // troca com o vizinho: soma dos dois é constante -> total intacto
+          let nw=Math.min(Math.max(60,w0+dx), w0+wn0-60); let nn=w0+wn0-nw;
+          col.style.width=nw+'px'; nbr.style.width=nn+'px'; saveW(col,nw); saveW(nbr,nn);
+        } else { // última coluna do meio / bandas fixas: cresce a tabela, sem encolher abaixo do card
+          let nw=Math.max(60,w0+dx); let tw=tw0-w0+nw;
+          if(isMid && tw<avail){ nw+=avail-tw; tw=avail; }   // trava: nunca deixa vão à direita
+          col.style.width=nw+'px'; sectionTable.style.width=tw+'px'; saveW(col,nw);
+        } };
+      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(!isMid) fitMid(); localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
       document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
     });
     g.addEventListener('dblclick',e=>{ e.preventDefault(); e.stopPropagation();
@@ -867,10 +905,11 @@ function dailyCells(x,d,isTotal){
 }
 
 /* ---------------- PAGE 2: Captura Meta Ads ---------------- */
-/* Mar04: considera TODOS os leads e TODO o gasto de todas as fontes de tráfego
-   (sem filtrar por atribuição). Hoje só há Meta; quando vier google/tiktok/orgânico
-   etc., já entram automaticamente. */
-function metaScope(ex){ let fL=leadsActive(), fM=metaActive(), fS=salesActive();
+/* Painel de mídia paga: só entram os leads que temos CERTEZA que vieram do
+   Meta (src==='meta', definido no build por utm_source + campanha, excluindo
+   link na bio / leads sem UTM). O gasto/impressões vêm sempre da aba Meta Ads
+   (fM) na íntegra. A Visão Geral, essa sim, conta TODOS os leads da planilha. */
+function metaScope(ex){ let fL=leadsActive().filter(l=>l.src==='meta'||l.src==='google'), fM=metaActive(), fS=salesActive().filter(s=>s.src==='meta'||s.src==='google');
   // seletores Funil / Temperatura (do nome da campanha) — filtram leads e mídia juntos
   if(STATE.fFunil){ fL=fL.filter(r=>r.funil===STATE.fFunil); fM=fM.filter(r=>r.funil===STATE.fFunil); }
   if(STATE.fTemp){ fL=fL.filter(r=>r.temp===STATE.fTemp); fM=fM.filter(r=>r.temp===STATE.fTemp); }
@@ -1071,6 +1110,9 @@ applyTheme();
 document.getElementById('themeBtn').addEventListener('click',()=>{ const dark=document.documentElement.getAttribute('data-theme')==='dark'; localStorage.setItem('dm_theme',dark?'light':'dark'); applyTheme(); renderAll(); });
 
 document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>setPage(n.dataset.page)));
+/* ao redimensionar a janela, re-renderiza p/ as tabelas preencherem de novo a
+   largura total do card (o fit da seção do meio depende da largura disponível) */
+let _rzT; window.addEventListener('resize',()=>{ clearTimeout(_rzT); _rzT=setTimeout(renderAll,150); });
 document.getElementById('taxToggle').addEventListener('click',function(){ STATE.tax=!STATE.tax; this.classList.toggle('on',STATE.tax); renderAll(); });
 /* seletor de período: abre/fecha popover, aplicar/cancelar, fechar ao clicar fora/Esc */
 document.getElementById('periodBtn').addEventListener('click',e=>{ e.stopPropagation(); ppIsOpen()?ppClose():ppOpen(); });
