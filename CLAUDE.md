@@ -82,6 +82,18 @@ Spreadsheet ID: `1aySlj8ryPjXICkRFT6SiFnEZC7z0NkN755jtoAbqQDI` ("ASP | Planilha 
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
+### Origem do lead: "certeza que é do Meta" × Visão Geral
+Regra do cliente: a **aba Captura Meta Ads só conta leads que temos CERTEZA que
+vieram do tráfego pago do Meta**; a **Visão Geral conta TODOS os leads da
+planilha**. Um lead vira `src="meta"` em `build.py` (`process()`) só quando tem
+**utm_source presente** E **utm_campaign válida** E **NÃO é link na bio /
+orgânico** (`is_organic_source()` — casa tokens `bio`/`linktree`/`organic`/…
+em `ORGANIC_TOKENS`, ajustável no topo do arquivo). Leads **sem UTM** e da **bio**
+caem em `src="org"` (camp/adset/ad = `(sem …)`), somem do painel Meta mas seguem
+na Visão Geral. No navegador, `metaScope()` (`app.js`) filtra `leadsActive()`/
+`salesActive()` por `src==='meta'`; a Visão Geral (`renderGeralCore`) usa todos.
+O build loga o split "leads Meta × bio/sem-UTM" no stderr.
+
 ### Regra de Lead Qualificado (MQL)
 Coluna de qualificação (— (cliente não usa MQL)) == "Sim".
 Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`app.js`,
