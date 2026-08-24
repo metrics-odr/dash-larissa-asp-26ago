@@ -47,17 +47,18 @@ const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
 /* leads que ENTRARAM no grupo de WhatsApp do lançamento (planilha "Versalhes -
    Input Grupo", cruzada por telefone com a 1ª conversa em build.py::process). */
 const groupActive = ()=> GROUP.filter(g=>dateActive(g.d));
-/* card "Leads no Grupo / Tx de Entrada / CPL-Grupo": nLeads = leads captados no
-   mesmo escopo (Geral: todos; Meta: só src Meta/Google) — Tx de Entrada = %
-   desses leads que entraram no grupo; CPL-Grupo = gasto do escopo / leads no
-   grupo (mesma métrica de "custo por resultado", agora até o grupo). */
-function groupKpis(gArr, nLeads, gasto){
+/* etapa do FUNIL "Leads no Grupo" (entre Leads e Vendas): nLeads = leads
+   captados no mesmo escopo (nAds p/ Meta-only; t.leads p/ Total Meta+Orgânico)
+   — Tx de Entrada = % desses leads que entraram no grupo; CPL-Grupo = gasto do
+   escopo / leads no grupo (mesma métrica de "custo por resultado", agora até
+   o grupo). Na Visão Geral entram DUAS etapas lado a lado (Meta × Total), pois
+   o funil ali soma leads pagos + orgânicos e as duas leituras são úteis
+   separadas; na Captura Meta Ads a página inteira já é Meta-only, então 1 etapa basta. */
+function groupFunnelStep(label, gArr, nLeads, gasto){
   const nGrupo=gArr.length;
-  return [
-    {label:'Leads no Grupo',val:intf(nGrupo),aux:'entraram no grupo do lançamento'},
-    {label:'Tx de Entrada',val:pct(nLeads?nGrupo/nLeads:null),aux:'Leads no Grupo / Leads'},
-    {label:'CPL-Grupo',val:nGrupo?brl(gasto/nGrupo):'-',aux:'Gasto / Leads no Grupo'},
-  ];
+  return [label, intf(nGrupo),
+    [['Tx Entrada', pct(nLeads?nGrupo/nLeads:null)], ['CPL-Grupo', nGrupo?brl(gasto/nGrupo):'-']],
+    nGrupo===0];
 }
 
 /* ---------------- aggregation ---------------- */
@@ -578,6 +579,8 @@ function renderGeralCore(ids){
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Page Views', intf(t.pv), [['CR',pct(dv.cr)],['CPV',brl(dv.cpv)]]],
     ['Leads', intf(t.leads), [['CPL',brl(dv.cpl)],['ConvLP',pct(dv.convlp)]]],
+    groupFunnelStep('Leads no Grupo (Meta)', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), nAds, g),
+    groupFunnelStep('Leads no Grupo (Total)', groupActive(), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
     ['Faturamento', s.fat!=null?brl(s.fat):NA, [['ROAS',s.roas!=null?numf(s.roas):NA],['Ticket',s.tm!=null?brl(s.tm):NA]], s.fat==null, 'hl-fat'],
   ];
@@ -603,7 +606,6 @@ function renderGeralCore(ids){
     {label:'% Eficácia Rastr.',val:pct(t.leads?comUtm/t.leads:null),aux:'Leads c/ UTM / Leads'},
     {label:'Leads Orgânicos',val:intf(nOrg),aux:'sem fonte paga'},
     {label:'Proporção Org:Ads',val:nOrg?numf(nAds/nOrg)+':1':(nAds?'∞':'-'),aux:'Ads por orgânico'},
-    ...groupKpis(groupActive(), t.leads, g),
   ];
   document.getElementById(ids.kpis2).innerHTML=k2.map(kpiCard).join('');
   comboChart(ids.combo, daily(fL,fM,fS));
@@ -952,14 +954,11 @@ function renderMeta(){
     ['Cliques', intf(t.cl), [['CTR',pct(dv.ctr)],['CPC',brl(dv.cpc)]]],
     ['Page Views', intf(t.pv), [['CR',pct(dv.cr)],['CPV',brl(dv.cpv)]]],
     ['Leads', intf(t.leads), [['CPL',brl(dv.cpl)],['ConvLP',pct(dv.convlp)]]],
+    groupFunnelStep('Leads no Grupo', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
     ['Faturamento', s.fat!=null?brl(s.fat):NA, [['ROAS',s.roas!=null?numf(s.roas):NA],['Ticket',s.tm!=null?brl(s.tm):NA]], s.fat==null, 'hl-fat'],
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
-
-  const gGroup=groupActive().filter(gr=>gr.src==='meta'||gr.src==='google');
-  const kGrupoEl=document.getElementById('metaKpisGrupo');
-  if(kGrupoEl) kGrupoEl.innerHTML=groupKpis(gGroup, t.leads, g).map(kpiCard).join('');
 
   comboChart('mCombo', daily(fL,fM,fS));
   // barras de Leads por anúncio (top 10)
