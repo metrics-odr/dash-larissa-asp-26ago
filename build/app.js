@@ -1,6 +1,6 @@
 "use strict";
 const DATA = JSON.parse(document.getElementById('payload').textContent);
-const LEADS = DATA.leads, META = DATA.meta, SALES = DATA.sales||[], B = DATA.build;
+const LEADS = DATA.leads, META = DATA.meta, SALES = DATA.sales||[], GROUP = DATA.group||[], B = DATA.build;
 const TAX = B.tax_factor || 1.0;
 
 /* ---------------- format ---------------- */
@@ -44,6 +44,21 @@ const metaActive  = ()=> META.filter(m=>dateActive(m.d));
 /* vendas: registro por COMPRA, filtrado pela data REAL da compra (nunca pela
    data da conversa que originou o contato) — ver build.py::process (sales[]). */
 const salesActive = ()=> SALES.filter(s=>dateActive(s.d));
+/* leads que ENTRARAM no grupo de WhatsApp do lançamento (planilha "Versalhes -
+   Input Grupo", cruzada por telefone com a 1ª conversa em build.py::process). */
+const groupActive = ()=> GROUP.filter(g=>dateActive(g.d));
+/* card "Leads no Grupo / Tx de Entrada / CPL-Grupo": nLeads = leads captados no
+   mesmo escopo (Geral: todos; Meta: só src Meta/Google) — Tx de Entrada = %
+   desses leads que entraram no grupo; CPL-Grupo = gasto do escopo / leads no
+   grupo (mesma métrica de "custo por resultado", agora até o grupo). */
+function groupKpis(gArr, nLeads, gasto){
+  const nGrupo=gArr.length;
+  return [
+    {label:'Leads no Grupo',val:intf(nGrupo),aux:'entraram no grupo do lançamento'},
+    {label:'Tx de Entrada',val:pct(nLeads?nGrupo/nLeads:null),aux:'Leads no Grupo / Leads'},
+    {label:'CPL-Grupo',val:nGrupo?brl(gasto/nGrupo):'-',aux:'Gasto / Leads no Grupo'},
+  ];
+}
 
 /* ---------------- aggregation ---------------- */
 function derive(a){
@@ -588,6 +603,7 @@ function renderGeralCore(ids){
     {label:'% Eficácia Rastr.',val:pct(t.leads?comUtm/t.leads:null),aux:'Leads c/ UTM / Leads'},
     {label:'Leads Orgânicos',val:intf(nOrg),aux:'sem fonte paga'},
     {label:'Proporção Org:Ads',val:nOrg?numf(nAds/nOrg)+':1':(nAds?'∞':'-'),aux:'Ads por orgânico'},
+    ...groupKpis(groupActive(), t.leads, g),
   ];
   document.getElementById(ids.kpis2).innerHTML=k2.map(kpiCard).join('');
   comboChart(ids.combo, daily(fL,fM,fS));
@@ -940,6 +956,10 @@ function renderMeta(){
     ['Faturamento', s.fat!=null?brl(s.fat):NA, [['ROAS',s.roas!=null?numf(s.roas):NA],['Ticket',s.tm!=null?brl(s.tm):NA]], s.fat==null, 'hl-fat'],
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
+
+  const gGroup=groupActive().filter(gr=>gr.src==='meta'||gr.src==='google');
+  const kGrupoEl=document.getElementById('metaKpisGrupo');
+  if(kGrupoEl) kGrupoEl.innerHTML=groupKpis(gGroup, t.leads, g).map(kpiCard).join('');
 
   comboChart('mCombo', daily(fL,fM,fS));
   // barras de Leads por anúncio (top 10)
