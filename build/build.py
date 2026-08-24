@@ -49,6 +49,14 @@ GID_META = "1059708846"        # Meta Ads
 GID_SALES = ""                 # sem aba de Compradores (vendas vêm do Meta Ads)
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 
+# Planilha separada "Versalhes - Input Grupo" — 1 linha por lead que ENTROU no
+# grupo de WhatsApp do lançamento (bot de automação, não a Central de Lançamento).
+# Colunas: Nome do Grupo | id_grupo | telefone_lead | hora de input (ISO c/ offset
+# -03:00). "Nome do Grupo" traz o sufixo "- ORGANICO" pros grupos de tráfego
+# orgânico (fallback de origem quando o telefone não cruza com nenhuma conversa).
+SPREADSHEET_ID_GRUPO = "1GDUYqHUF51bZ7f7KKKzAl_V7tMWKzwrdS__45X9LzMw"
+GID_GRUPO = "0"
+
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
 CLIENT_NAME = "Larissa Topper"
 MAIN_PRODUCT = "Acenda Seu Propósito"
@@ -371,7 +379,34 @@ def log_unmatched_sales(sales_index, phone_attrib):
 # --------------------------------------------------------------------------- #
 # Processamento -> registros brutos
 # --------------------------------------------------------------------------- #
-def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
+def build_group_records(group_rows, phone_attrib):
+    """Le a planilha separada 'Versalhes - Input Grupo' (1 linha por lead que
+    ENTROU no grupo de WhatsApp do lancamento) e devolve [{"d":..., "src":...}, ...].
+    Origem (src) preferencialmente cruzada por TELEFONE com phone_attrib (a mesma
+    1a-conversa usada p/ atribuir vendas) — mais precisa que confiar só no texto
+    da coluna "Nome do Grupo". Sem match de telefone, cai no fallback: nome do
+    grupo com sufixo "ORGANICO" => src="org", senão "meta"."""
+    if not group_rows:
+        return []
+    header = group_rows[0]
+    idx = header_index(
+        header,
+        {"phone": ["telefone_lead", "telefone"], "date": ["hora de input", "data"],
+         "nome_grupo": ["nome do grupo"]},
+        {"phone": 2, "date": 3, "nome_grupo": 0},
+    )
+    out = []
+    for row in group_rows[1:]:
+        if not any((c or "").strip() for c in row):
+            continue
+        phone = canon_phone(cell(row, idx["phone"]))
+        attrib = phone_attrib.get(phone)
+        src = attrib["src"] if attrib else ("org" if "organico" in norm(cell(row, idx["nome_grupo"])) else "meta")
+        out.append({"d": parse_date(cell(row, idx["date"])), "src": src})
+    return out
+
+
+def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=None):
     sales_index = build_sales_index(sales_rows)
 
     cheader = conversas_rows[0] if conversas_rows else []
@@ -453,6 +488,8 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             "em": "—",
             "ph": mask_phone(cell(row, cidx["phone"])),
         })
+
+    group = build_group_records(group_rows, phone_attrib)
 
     # Vendas: um registro POR COMPRA (nunca agregada por telefone), na data real
     # da compra. TODA venda entra (aparece na Visão Geral e nos totais) — decisão
@@ -576,6 +613,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
         "leads": leads,
         "meta": meta,
         "sales": sales,
+        "group": group,
         # Anúncio -> permalink do criativo (aba Relatório).
         "ad_links": ad_links,
         # Insights de Tráfego (texto pré-escrito, lido de relatorios.json). Preenchido
@@ -636,6 +674,7 @@ def main():
     ap.add_argument("--leads-file", help="CSV local da aba Leads (LP, legado — só contada)")
     ap.add_argument("--meta-file")
     ap.add_argument("--sales-file", help="CSV local da aba New Subscriptions (Compradores)")
+    ap.add_argument("--grupo-file", help="CSV local da planilha 'Versalhes - Input Grupo' (leads que entraram no grupo)")
     ap.add_argument("--template", default="build/template.html")
     ap.add_argument("--out", default="dist/index.html")
     args = ap.parse_args()
@@ -650,8 +689,10 @@ def main():
     meta_rows = load_gid(GID_META, args.meta_file)
     sales_rows = load_gid(GID_SALES, args.sales_file)
     leads_lp_rows = load_gid(GID_LEADS, args.leads_file)
+    group_rows = (read_csv_file(args.grupo_file) if args.grupo_file
+                  else load_rows(EXPORT_URL.format(sid=SPREADSHEET_ID_GRUPO, gid=GID_GRUPO), None))
 
-    data = process(conversas_rows, meta_rows, sales_rows, leads_lp_rows)
+    data = process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows)
 
     # Insights de Tráfego (texto pré-escrito) — lidos do arquivo versionado ao
     # lado do template. Sem chamada de API no build.
@@ -673,6 +714,7 @@ def main():
     print(f"  vendas    : {vd}  faturamento: R$ {fat:,.2f}", file=sys.stderr)
     print(f"  leads LP  : {b['leads_lp_total']} (fonte antiga, não usada na UI)", file=sys.stderr)
     print(f"  meta      : {len(data['meta'])} linhas", file=sys.stderr)
+    print(f"  grupo     : {len(data['group'])} leads entraram no grupo", file=sys.stderr)
     print(f"  out       : {args.out}", file=sys.stderr)
 
 
