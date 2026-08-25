@@ -204,6 +204,13 @@
   table.dt tbody tr{cursor:pointer}
   table.dt tbody tr:hover{background:var(--accent-blue-light)}
   table.dt tbody tr.sel{background:var(--selected)}
+  /* .dt-split = 3 <table> separadas (banda esquerda/miolo/banda direita) pra
+     uma linha só; :hover nativo só acende a seção sob o cursor, então o hover
+     "de verdade" é feito via JS (classe .row-hover espelhada nas 3 seções —
+     ver renderSplitTable em app.js) e o :hover nativo é desligado aqui. */
+  .dt-split table.dt tbody tr:hover{background:inherit}
+  .dt-split table.dt tbody tr.row-hover{background:var(--accent-blue-light)}
+  .dt-split table.dt tbody tr.sel.row-hover{background:var(--selected)}
   table.dt tfoot td{position:sticky; bottom:0; background:var(--tfoot); font-weight:700; border-top:2px solid var(--border); text-align:right}
   table.dt tfoot td.dim{text-align:left}
   /* Mar01: tabelas diárias com dados centralizados (a dimensão/Dia continua à esquerda) */
