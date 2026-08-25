@@ -362,6 +362,25 @@ function renderSplitTable(cfg){
     } else { tbl.style.width=cur+'px'; }
   }
   fitMid();
+  // as 3 tabelas são DOM independentes — mesmo com o mesmo conteúdo/CSS, a
+  // altura de cada linha pode divergir por 1px entre elas (ex.: a barra de
+  // rolagem horizontal do miolo, quando aparece, consome espaço vertical só
+  // NAQUELA seção). Sem isso as linhas visualmente "descolam" à medida que o
+  // desalinho acumula. Mede a altura natural de cada linha (cabeçalho, corpo
+  // e rodapé) nas 3 seções e trava todas na maior — assim ficam sempre
+  // pixel-a-pixel alinhadas, como se fosse 1 tabela só.
+  function syncRowHeights(){
+    const tables=[fresh.querySelector('.dt-split-l table'), fresh.querySelector('.dt-split-scroll table'), fresh.querySelector('.dt-split-r table')];
+    if(tables.some(t=>!t)) return;
+    const rowsOf=t=>[...t.querySelectorAll('thead tr, tbody tr, tfoot tr')];
+    const trsList=tables.map(rowsOf);
+    const n=Math.min(...trsList.map(a=>a.length));
+    trsList.forEach(a=>a.forEach(tr=>{ tr.style.height=''; }));
+    const heights=[];
+    for(let i=0;i<n;i++) heights[i]=Math.max(...trsList.map(a=>a[i].offsetHeight));
+    for(let i=0;i<n;i++) trsList.forEach(a=>{ a[i].style.height=heights[i]+'px'; });
+  }
+  syncRowHeights();
   // as 3 seções rolam verticalmente cada uma por conta própria (CSS acima) —
   // sincroniza scrollTop entre elas pra se comportarem como 1 tabela só,
   // não importa sobre qual seção o mouse rolou.
@@ -411,7 +430,7 @@ function renderSplitTable(cfg){
           if(isMid && tw<avail){ nw+=avail-tw; tw=avail; }   // trava: nunca deixa vão à direita
           col.style.width=nw+'px'; sectionTable.style.width=tw+'px'; saveW(col,nw);
         } };
-      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(!isMid) fitMid(); localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
+      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(!isMid) fitMid(); syncRowHeights(); localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
       document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
     });
     g.addEventListener('dblclick',e=>{ e.preventDefault(); e.stopPropagation();
@@ -427,6 +446,16 @@ function renderSplitTable(cfg){
       tr.addEventListener('click',e=>{ cfg.onSelect(decodeURIComponent(tr.dataset.k), e); });
     });
   }
+  // as 3 <tbody> são tabelas separadas — sem isso, passar o mouse só acende
+  // hover na seção sob o cursor (banda esquerda/miolo/banda direita "brigam"
+  // em vez de se comportar como 1 linha só). data-k é o mesmo nas 3 seções
+  // (mesma `r.k` da linha), então usamos ele pra achar e acender as 3 juntas.
+  fresh.querySelectorAll('tbody tr[data-k]').forEach(tr=>{
+    const k=tr.dataset.k;
+    const twins=()=>fresh.querySelectorAll(`tbody tr[data-k="${CSS.escape(k)}"]`);
+    tr.addEventListener('mouseenter',()=>twins().forEach(t=>t.classList.add('row-hover')));
+    tr.addEventListener('mouseleave',()=>twins().forEach(t=>t.classList.remove('row-hover')));
+  });
   if(cfg.afterRender) cfg.afterRender(fresh, rows);
 }
 /* Heatmap por coluna: cor FIXA por métrica (definida em identidade-visual.css),
