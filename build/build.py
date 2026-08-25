@@ -385,9 +385,12 @@ def build_group_records(group_rows):
     """Le a planilha separada 'Versalhes - Input Grupo' (1 linha por lead que
     ENTROU no grupo de WhatsApp do lancamento) e devolve [{"d":..., "src":...}, ...].
     Origem (src) vem SEMPRE do texto da própria coluna "Nome do Grupo" (não do
-    telefone): o bot marca cada linha com o grupo de destino — sufixo/menção a
-    "ORGANICO" ou "API" (mesmos ORGANIC_TOKENS usados p/ leads da Conversas)
-    => src="org"; nome "limpo", sem indicativo => src="meta" (tráfego pago)."""
+    telefone): o bot grava o nome "limpo" (== MAIN_PRODUCT, sem nenhum sufixo)
+    só pros grupos de tráfego pago; QUALQUER indicativo/sufixo no nome
+    (" - ORGANICO", " - API" etc. — variações de texto não são todas
+    previsíveis) marca lead que NÃO é de mídia paga. Por isso a checagem é por
+    ALLOWLIST (nome == MAIN_PRODUCT exato), não por blacklist de palavras:
+    nome "limpo" => src="meta" (tráfego pago); qualquer outra coisa => src="org"."""
     if not group_rows:
         return []
     header = group_rows[0]
@@ -400,7 +403,7 @@ def build_group_records(group_rows):
     for row in group_rows[1:]:
         if not any((c or "").strip() for c in row):
             continue
-        src = "org" if is_organic_source(cell(row, idx["nome_grupo"])) else "meta"
+        src = "meta" if norm(cell(row, idx["nome_grupo"])) == norm(MAIN_PRODUCT) else "org"
         out.append({"d": parse_date(cell(row, idx["date"])), "src": src})
     return out
 
