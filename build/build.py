@@ -282,13 +282,15 @@ def valid_utm(campaign: str) -> bool:
 ORGANIC_TOKENS = {
     "bio", "linkbio", "linkinbio", "linktree", "instabio", "beacons",
     "perfil", "profile", "organic", "organico", "organica",
+    "api",
 }
 
 
 def is_organic_source(*vals) -> bool:
-    """True quando o lead veio do link na bio / fonte orgânica (não é clique em
-    anúncio pago do Meta). Inspeciona utm_source/utm_medium/utm_campaign/utm_term
-    normalizados, casando qualquer TOKEN contra ORGANIC_TOKENS."""
+    """True quando o lead veio do link na bio / fonte orgânica / API (não é
+    clique em anúncio pago do Meta). Inspeciona utm_source/utm_medium/
+    utm_campaign/utm_term normalizados, casando qualquer TOKEN contra
+    ORGANIC_TOKENS."""
     text = norm(" ".join(str(v or "") for v in vals))
     return any(t in ORGANIC_TOKENS for t in re.split(r"[^a-z0-9]+", text) if t)
 
@@ -449,9 +451,10 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
         term_raw = cell(row, cidx["term"])
         campaign_valid = valid_utm(campaign_raw)
         # "Certeza que é do Meta" (regra do cliente): só entra no painel de mídia
-        # paga o lead que tem utm_source presente E NÃO é link na bio / orgânico.
-        # Leads sem UTM (utm_source vazio) e da bio caem em "org" — contam só na
-        # Visão Geral (que exibe TODOS os leads da planilha), nunca no Meta.
+        # paga o lead que tem utm_source presente E NÃO é link na bio / orgânico /
+        # API. Leads sem UTM (utm_source vazio), da bio ou via API caem em "org"
+        # — contam só na Visão Geral (que exibe TODOS os leads da planilha), nunca
+        # no Meta.
         has_source = bool(norm(source_raw))
         organic = is_organic_source(source_raw, adset_raw, campaign_raw, term_raw)
         is_meta = campaign_valid and has_source and not organic
