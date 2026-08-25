@@ -381,29 +381,29 @@ def log_unmatched_sales(sales_index, phone_attrib):
 # --------------------------------------------------------------------------- #
 # Processamento -> registros brutos
 # --------------------------------------------------------------------------- #
-def build_group_records(group_rows, phone_attrib):
+def build_group_records(group_rows):
     """Le a planilha separada 'Versalhes - Input Grupo' (1 linha por lead que
     ENTROU no grupo de WhatsApp do lancamento) e devolve [{"d":..., "src":...}, ...].
-    Origem (src) preferencialmente cruzada por TELEFONE com phone_attrib (a mesma
-    1a-conversa usada p/ atribuir vendas) — mais precisa que confiar só no texto
-    da coluna "Nome do Grupo". Sem match de telefone, cai no fallback: nome do
-    grupo com sufixo "ORGANICO" => src="org", senão "meta"."""
+    Origem (src) vem SEMPRE do texto da própria coluna "Nome do Grupo" (não do
+    telefone): o bot grava o nome "limpo" (== MAIN_PRODUCT, sem nenhum sufixo)
+    só pros grupos de tráfego pago; QUALQUER indicativo/sufixo no nome
+    (" - ORGANICO", " - API" etc. — variações de texto não são todas
+    previsíveis) marca lead que NÃO é de mídia paga. Por isso a checagem é por
+    ALLOWLIST (nome == MAIN_PRODUCT exato), não por blacklist de palavras:
+    nome "limpo" => src="meta" (tráfego pago); qualquer outra coisa => src="org"."""
     if not group_rows:
         return []
     header = group_rows[0]
     idx = header_index(
         header,
-        {"phone": ["telefone_lead", "telefone"], "date": ["hora de input", "data"],
-         "nome_grupo": ["nome do grupo"]},
-        {"phone": 2, "date": 3, "nome_grupo": 0},
+        {"date": ["hora de input", "data"], "nome_grupo": ["nome do grupo"]},
+        {"date": 3, "nome_grupo": 0},
     )
     out = []
     for row in group_rows[1:]:
         if not any((c or "").strip() for c in row):
             continue
-        phone = canon_phone(cell(row, idx["phone"]))
-        attrib = phone_attrib.get(phone)
-        src = attrib["src"] if attrib else ("org" if "organico" in norm(cell(row, idx["nome_grupo"])) else "meta")
+        src = "meta" if norm(cell(row, idx["nome_grupo"])) == norm(MAIN_PRODUCT) else "org"
         out.append({"d": parse_date(cell(row, idx["date"])), "src": src})
     return out
 
@@ -492,7 +492,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
             "ph": mask_phone(cell(row, cidx["phone"])),
         })
 
-    group = build_group_records(group_rows, phone_attrib)
+    group = build_group_records(group_rows)
 
     # Vendas: um registro POR COMPRA (nunca agregada por telefone), na data real
     # da compra. TODA venda entra (aparece na Visão Geral e nos totais) — decisão
