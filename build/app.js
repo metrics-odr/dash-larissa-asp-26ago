@@ -495,14 +495,19 @@ function comboChart(id, d){
       {type:'bar',label:'Leads',data:d.map(x=>x.leads),backgroundColor:cLeads,yAxisID:'y',borderRadius:3,order:3},
       {type:'bar',label:'Vendas',data:d.map(x=>x.vendas||0),backgroundColor:cMqls,yAxisID:'y',borderRadius:3,order:3},
       {type:'line',label:'Gasto',data:d.map(x=>+(x.sp*taxf()).toFixed(2)),borderColor:cGasto,backgroundColor:cGasto,yAxisID:'y1',borderWidth:2,pointRadius:2,tension:.25,order:1},
-      {type:'line',label:'CPL',data:d.map(x=>x.leads?+((x.sp*taxf())/x.leads).toFixed(2):null),borderColor:cCpl,backgroundColor:cCpl,yAxisID:'y1',borderWidth:2,pointRadius:2,spanGaps:true,tension:.25,order:0},
+      /* CPL vive num EIXO PRÓPRIO (y2): na escala do Gasto (milhares) a linha de CPL
+         (~R$ 5) ficava colada no eixo X e não dava p/ ler tendência. */
+      {type:'line',label:'CPL',data:d.map(x=>x.leads?+((x.sp*taxf())/x.leads).toFixed(2):null),borderColor:cCpl,backgroundColor:cCpl,yAxisID:'y2',borderWidth:2,pointRadius:3,spanGaps:true,tension:.25,order:0},
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:cink(),boxWidth:10,usePointStyle:true,font:{size:11}}},
-        tooltip:{callbacks:{label:c=>{const v=c.raw; return c.dataset.label+': '+(c.dataset.yAxisID==='y1'?brl(v):intf(v));}}}},
+        tooltip:{callbacks:{label:c=>{const v=c.raw; return c.dataset.label+': '+(c.dataset.yAxisID==='y'?intf(v):brl(v));}}}},
       scales:{x:{ticks:{color:mut,font:{size:10}},grid:{display:false}},
         y:{position:'left',ticks:{color:mut,font:{size:10}},grid:{color:gr},beginAtZero:true,title:{display:true,text:'Leads / Vendas',color:mut,font:{size:10}}},
-        y1:{position:'right',ticks:{color:mut,font:{size:10}},grid:{display:false},beginAtZero:true,title:{display:true,text:'R$',color:mut,font:{size:10}}}}}
+        y1:{position:'right',ticks:{color:mut,font:{size:10}},grid:{display:false},beginAtZero:true,title:{display:true,text:'Gasto (R$)',color:mut,font:{size:10}}},
+        /* eixo só do CPL — escala automática em torno dos próprios valores (sem
+           beginAtZero) p/ a variação diária aparecer; grade e rótulos na cor do CPL */
+        y2:{position:'right',ticks:{color:cCpl,font:{size:10},callback:v=>brl(v)},grid:{display:false},beginAtZero:false,grace:'15%',title:{display:true,text:'CPL (R$)',color:cCpl,font:{size:10}}}}}
   });
 }
 function hbar(id, items, valFn, colorFn, top, unit){
