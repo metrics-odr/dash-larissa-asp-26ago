@@ -33,9 +33,12 @@ import io
 import json
 import os
 import re
+import socket
 import sys
+import time
 import unicodedata
 import urllib.request
+from urllib.error import URLError
 from datetime import datetime, timezone, timedelta
 
 SPREADSHEET_ID = "1aySlj8ryPjXICkRFT6SiFnEZC7z0NkN755jtoAbqQDI"
@@ -103,10 +106,26 @@ N_DIAS_CORTE = 5           # dias consecutivos acima do teto p/ considerar corte
 # Leitura
 # --------------------------------------------------------------------------- #
 def fetch_csv(url: str) -> list[list[str]]:
+    """Busca um CSV público do Google Sheets com retry (2s/5s/10s de espera):
+    planilhas grandes/com muitas abas (ex. a de Vendas totais unificadas) às
+    vezes demoram pra gerar o export no lado do Google e estouram timeout —
+    isso é intermitente, não um erro do nosso lado, então vale tentar de
+    novo antes de derrubar o build inteiro."""
     req = urllib.request.Request(url, headers={"User-Agent": "dash-template-bot/1.0"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8", errors="replace")
-    return list(csv.reader(io.StringIO(raw)))
+    delays = [2, 5, 10]
+    last_err = None
+    for attempt, delay in enumerate([0] + delays):
+        if delay:
+            print(f"  fetch_csv: tentativa {attempt + 1} falhou ({last_err}), "
+                  f"nova tentativa em {delay}s...", file=sys.stderr)
+            time.sleep(delay)
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+            return list(csv.reader(io.StringIO(raw)))
+        except (URLError, TimeoutError, socket.timeout) as e:
+            last_err = e
+    raise last_err
 
 
 def read_csv_file(path: str) -> list[list[str]]:
