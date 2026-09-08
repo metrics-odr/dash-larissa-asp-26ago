@@ -126,17 +126,25 @@ real da compra**. No navegador, `salesActive()` (`app.js`) filtra `sales[]`
 pela mesma data ativa que `leadsActive()`/`metaActive()`, e os três arrays
 (`fL`/`fM`/`fS`) se propagam juntos em `buildAgg`/`daily`/`totals`.
 
-**TODA venda entra na dash** (regra geral: "todas as vendas entram na Visão
-Geral; só as atribuídas ao Meta entram na aba de mídia paga"). O cruzamento é
-por **TELEFONE OU E-MAIL — nunca por UTM** (a aba de vendas não tem
-campanha/anúncio próprios): telefone tem prioridade (`canon_phone()` —
-**chave canônica** = DDD + últimos 8 dígitos, robusta a **DDI "55"**
-presente/ausente e ao **9º dígito** do celular); quando o telefone não bate
-com nenhuma conversa, tenta pelo e-mail (normalizado/minúsculo) como
-fallback. Quando **nenhum dos dois** bate, a venda **ainda conta nos
-totais/Visão Geral**, porém como `(sem campanha)` / `src="org"` — some apenas
-da quebra por campanha do Meta. `log_unmatched_sales()` loga no build quantas
-vendas ficaram sem anúncio de origem.
+**Só entra na dash a venda efetivamente CRUZADA com a Lista de Leads**
+(decisão do cliente: a dashboard deve refletir só o tráfego que sabemos de
+onde veio — não a planilha de vendas inteira). O cruzamento é por **TELEFONE
+OU E-MAIL — nunca por UTM** (a aba de vendas não tem campanha/anúncio
+próprios): telefone tem prioridade (`canon_phone()` — **chave canônica** =
+DDD + últimos 8 dígitos, robusta a **DDI "55"** presente/ausente e ao **9º
+dígito** do celular); quando o telefone não bate com nenhuma conversa, tenta
+pelo e-mail (normalizado/minúsculo) como fallback. Quando **nenhum dos dois**
+bate (comprou por outro canal, ou os dados de contato divergem), a venda é
+**descartada** — não entra em `DATA.sales[]`, nem na Visão Geral nem nos
+totais. Vendas **sem `data_envio`** na planilha de origem também são
+descartadas (não há como posicioná-las num período sem inventar uma data —
+ver nota acima sobre nunca usar a data da conversa como proxy).
+`log_unmatched_sales()` loga no build (stderr) quantas vendas foram
+descartadas por falta de correspondência e por falta de data — nunca aparece
+no site. Uma venda cruzada a um lead **orgânico** (`src="org"`, sem UTM) ainda
+entra na Visão Geral como `(sem campanha)` — só some da quebra por campanha
+do Meta — porque nesse caso ela FOI cruzada, só não tem campanha paga de
+origem.
 
 **Fat. (faturamento) × Caixa (receita):** `faturamentoVenda` é o valor total
 contratado da venda; `caixaVenda` é a entrada/receita já recebida. Como as
