@@ -113,18 +113,26 @@ Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`ap
 `build.py` → `build_sales_index()` lê a aba **Vendas totais unificadas**
 (`SPREADSHEET_ID_VENDAS`/`GID_VENDAS`, planilha separada da central) e devolve
 uma lista de compras **não agregada**, uma entrada por linha:
-`[{phone, email, d, fat, receita, nm}, ...]` (`d` = data real daquela compra,
-`fat` = `faturamentoVenda`, `receita` = `caixaVenda`). Linhas sem telefone
-válido **e** sem e-mail válido são descartadas (não há como cruzar). Em
-`process()`, as linhas da **Lista de Leads** são ordenadas pela **data já
-parseada** (`parse_date`, não a string bruta) para achar a **1ª conversa**
-(mais antiga de fato) de cada telefone **e** de cada e-mail; essa conversa
-define **apenas** camp/adset/ad da venda (o anúncio que trouxe aquele
-contato) — nunca a data. Cada compra vira um registro próprio em
-`DATA.sales[]` (`{d, camp, adset, ad, vendas:1, fat, receita}`) com a **data
-real da compra**. No navegador, `salesActive()` (`app.js`) filtra `sales[]`
-pela mesma data ativa que `leadsActive()`/`metaActive()`, e os três arrays
-(`fL`/`fM`/`fS`) se propagam juntos em `buildAgg`/`daily`/`totals`.
+`[{phone, email, d, fat, receita, nm}, ...]` (`d` = `data_envio`, usada só de
+referência/diagnóstico — **não** posiciona a venda no funil, ver ATRIBUIÇÃO
+POR COORTE abaixo; `fat` = `faturamentoVenda`, `receita` = `caixaVenda`).
+Linhas sem telefone válido **e** sem e-mail válido são descartadas (não há
+como cruzar). Em `process()`, as linhas da **Lista de Leads** são ordenadas
+pela **data já parseada** (`parse_date`, não a string bruta) para achar a
+**1ª conversa** (mais antiga de fato) de cada telefone **e** de cada e-mail.
+Cada compra vira um registro próprio em `DATA.sales[]`
+(`{d, camp, adset, ad, vendas:1, fat, receita}`). No navegador,
+`salesActive()` (`app.js`) filtra `sales[]` pela mesma data ativa que
+`leadsActive()`/`metaActive()`, e os três arrays (`fL`/`fM`/`fS`) se propagam
+juntos em `buildAgg`/`daily`/`totals`.
+
+**ATRIBUIÇÃO POR COORTE** (decisão do cliente): a venda entra na **data de
+CADASTRO do lead** — a data da 1ª conversa que casou por telefone/e-mail —
+**nunca** na data real da compra (`data_envio`). Essa MESMA conversa também
+define camp/adset/ad da venda (o anúncio que trouxe aquele contato). Isso
+mede o valor que cada dia/campanha de captura efetivamente gerou, ainda que
+o fechamento tenha levado semanas/meses — em vez de misturar, no dia da
+cobrança, leads captados em datas (e campanhas) completamente diferentes.
 
 **Só entra na dash a venda efetivamente CRUZADA com a Lista de Leads**
 (decisão do cliente: a dashboard deve refletir só o tráfego que sabemos de
@@ -136,15 +144,11 @@ dígito** do celular); quando o telefone não bate com nenhuma conversa, tenta
 pelo e-mail (normalizado/minúsculo) como fallback. Quando **nenhum dos dois**
 bate (comprou por outro canal, ou os dados de contato divergem), a venda é
 **descartada** — não entra em `DATA.sales[]`, nem na Visão Geral nem nos
-totais. Vendas **sem `data_envio`** na planilha de origem também são
-descartadas (não há como posicioná-las num período sem inventar uma data —
-ver nota acima sobre nunca usar a data da conversa como proxy).
-`log_unmatched_sales()` loga no build (stderr) quantas vendas foram
-descartadas por falta de correspondência e por falta de data — nunca aparece
-no site. Uma venda cruzada a um lead **orgânico** (`src="org"`, sem UTM) ainda
-entra na Visão Geral como `(sem campanha)` — só some da quebra por campanha
-do Meta — porque nesse caso ela FOI cruzada, só não tem campanha paga de
-origem.
+totais. `log_unmatched_sales()` loga no build (stderr) quantas vendas foram
+descartadas por falta de correspondência — nunca aparece no site. Uma venda
+cruzada a um lead **orgânico** (`src="org"`, sem UTM) ainda entra na Visão
+Geral como `(sem campanha)` — só some da quebra por campanha do Meta —
+porque nesse caso ela FOI cruzada, só não tem campanha paga de origem.
 
 **Fat. (faturamento) × Caixa (receita):** `faturamentoVenda` é o valor total
 contratado da venda; `caixaVenda` é a entrada/receita já recebida. Como as
