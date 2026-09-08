@@ -172,15 +172,6 @@ function colWidth(cfg,c){ const saved=(STATE.colw[cfg.id]||{})[c.key];
   if(c.type==='brl') return 110;   // "R$ 1.487,42" não cabia nos 92px padrão (cortava com "…")
   return 92; }
 function renderTable(cfg){
-  // tabelas com colunas travadas EM BANDA (band:'l'/'r' — não confundir com o
-  // stk:'l1'/'r' do rel-adt, esquema à parte, só 1 coluna de cada lado) usam
-  // um motor separado — ver renderSplitTable — porque aqui há VÁRIAS colunas
-  // coladas de cada lado, e a soma delas pode superar a largura do card:
-  // position:sticky por célula nesse caso gruda as bandas por cima do miolo
-  // em vez de ao lado (o miolo fica permanentemente encoberto, sem posição
-  // de scroll que o revele). 3 <table> lado a lado, cada uma só do tamanho
-  // que precisa, não tem esse problema.
-  if(cfg.cols.some(c=>c.band)) return renderSplitTable(cfg);
   const table=document.getElementById(cfg.id); if(!table) return;
   table.classList.toggle('dt-center', !!cfg.center);   // Mar01: dados centralizados
   const fit=!!cfg.fit;                                  // fit: cabe 100% da largura, sem scroll
@@ -204,26 +195,38 @@ function renderTable(cfg){
   }).join('')+'</colgroup>';
   const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
   const stkCls=c=>c.stk?' stk-'+c.stk:'';
+  // colunas travadas em BANDA à esquerda (band:'l' — tabelas Campanha/Conjunto/
+  // Anúncio: dim+Gasto grudados, o resto rola). É UMA tabela só com
+  // position:sticky por célula (como o stk:'l1'/'r' do rel-adt, só que N
+  // colunas em vez de 1) — nunca mais de uma <table> por linha, então as
+  // linhas NUNCA podem desalinhar entre si (o navegador garante). Cada
+  // coluna trava no acumulado das larguras das anteriores (assume que as
+  // colunas band:'l' vêm primeiro em cfg.cols, como em todo uso atual).
+  let stlAcc=0, lastStlIdx=-1;
+  const stlLeft=cfg.cols.map((c,i)=>{ if(c.band!=='l') return null; lastStlIdx=i;
+    const off=stlAcc; stlAcc+=fit?(parseFloat(fitW(c))||0):widths[i]; return off; });
+  const stlCls=i=> stlLeft[i]==null?'':(' stl'+(i===lastStlIdx?' stl-last':''));
+  const stlStyle=i=> stlLeft[i]==null?'':`left:${stlLeft[i]}px;`;
   let thead='<thead><tr>'+cfg.cols.map((c,i)=>{
     const sc = sortState&&sortState.key===c.key ? (sortState.dir==='asc'?'sorted-asc':'sorted-desc') : '';
-    return `<th class="${c.type==='dim'?'dim ':''}${sc}${stkCls(c)}" data-k="${c.key}" data-ci="${i}" title="${esc(c.label)}">${c.label}${fit?'':'<span class="rsz"></span>'}</th>`;
+    return `<th class="${c.type==='dim'?'dim ':''}${sc}${stkCls(c)}${stlCls(i)}" style="${stlStyle(i)}" data-k="${c.key}" data-ci="${i}" title="${esc(c.label)}">${c.label}${fit?'':'<span class="rsz"></span>'}</th>`;
   }).join('')+'</tr></thead>';
   // title = valor SEMPRE completo (mesmo em fit, onde a célula pode abreviar/cortar) — passe o mouse p/ ver
   let tbody='<tbody>'+rows.map(r=>{
     const sel = cfg.selectable && cfg.selSet && cfg.selSet.has(r.k);
-    const tds=cfg.cols.map(c=>{
+    const tds=cfg.cols.map((c,i)=>{
       const v=r.cells[c.key]; let bg='';
       if(c.heat && ext[c.key]) bg=`background:${heat(v,ext[c.key][0],ext[c.key][1],c.heat)}`;
-      const cls=(c.type==='dim'?'dim':'')+(c.cls&&c.cls(r)?' '+c.cls(r):'')+stkCls(c);
+      const cls=(c.type==='dim'?'dim':'')+(c.cls&&c.cls(r)?' '+c.cls(r):'')+stkCls(c)+stlCls(i);
       const ttl=c.type==='html'?'':` title="${esc(fmtStd(c.type,v))}"`;
-      return `<td class="${cls}" style="${bg}"${ttl}>${fmt(c.type,v)}</td>`;
+      return `<td class="${cls}" style="${bg}${stlStyle(i)}"${ttl}>${fmt(c.type,v)}</td>`;
     }).join('');
     return `<tr class="${sel?'sel':''}" data-k="${encodeURIComponent(r.k)}">${tds}</tr>`;
   }).join('')+'</tbody>';
   let tfoot='';
   if(cfg.total){ tfoot='<tfoot><tr>'+cfg.cols.map((c,i)=>{
     const v=cfg.total[c.key]; const isFirst=i===0&&v==null;
-    return `<td class="${c.type==='dim'?'dim':''}${stkCls(c)}" title="${isFirst?'Total Geral':esc(fmtStd(c.type,v))}">${isFirst?'Total Geral':fmt(c.type,v)}</td>`;
+    return `<td class="${c.type==='dim'?'dim':''}${stkCls(c)}${stlCls(i)}" style="${stlStyle(i)}" title="${isFirst?'Total Geral':esc(fmtStd(c.type,v))}">${isFirst?'Total Geral':fmt(c.type,v)}</td>`;
   }).join('')+'</tr></tfoot>'; }
   table.style.width=fit?'100%':totalW+'px';
   table.innerHTML=colgroup+thead+tbody+tfoot;
@@ -246,7 +249,9 @@ function renderTable(cfg){
       document.body.style.userSelect='none';
       const mv=ev=>{ const nw=Math.max(60,w0+(ev.clientX-x0)); cols[ci].style.width=nw+'px'; table.style.width=(tw0-w0+nw)+'px';
         STATE.colw[cfg.id]=STATE.colw[cfg.id]||{}; STATE.colw[cfg.id][k]=nw; };
-      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
+      // ao soltar, re-renderiza inteiro: reposiciona o "left" acumulado das
+      // colunas travadas seguintes (band:'l') e recalcula tudo do zero.
+      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); renderTable(cfg); };
       document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
     });
     // duplo-clique na borda = auto-ajustar largura ao conteúdo (como Sheets/Looker)
@@ -267,199 +272,6 @@ function renderTable(cfg){
   // hook pós-renderização (roda de novo em CADA re-render, inclusive ao ordenar,
   // pra chips/cores customizados nunca sumirem ao clicar num cabeçalho)
   if(cfg.afterRender) cfg.afterRender(table, rows);
-}
-/* ---------------- tabela "split" (colunas travadas em banda) ----------------
-   3 <table> independentes lado a lado (esquerda fixa · meio com scroll
-   próprio · direita fixa). Cada seção rola VERTICALMENTE por conta própria
-   (max-height igual ao do .tbl-wrap ancestral + overflow-y:auto — ver CSS
-   .dt-split-fixed/.dt-split-scroll) e um listener de 'scroll' sincroniza as
-   3 (scrollTop) pra se comportarem como uma tabela só. Isso evita as 2
-   armadilhas de quando isso era 1 única faixa por posição:
-   1) cabeçalho "solto": se só o miolo tem overflow-x:auto, o CSS força
-      overflow-y a virar "auto" nele também (canonicalização do spec) —
-      mas como o miolo nunca chega a rolar de fato sozinho (cresce até
-      caber o conteúdo), ele vira um scroll container que nunca se move,
-      e o sticky do thead gruda relativo A ELE, não ao .tbl-wrap que
-      realmente rola — daí o cabeçalho "sobe" junto com o resto ao rolar.
-   2) banda cobrindo o miolo: position:sticky por célula numa única
-      <table> não sobra espaço pro miolo quando (banda esquerda + banda
-      direita) > largura do card — o miolo fica permanentemente atrás das
-      bandas, sem posição de scroll que o revele.
-   Cada seção rolando por si (bounded, overflow-y:auto de verdade) faz o
-   sticky nativo funcionar sem ressalva nenhuma, e cada uma só ocupa o
-   espaço que ela mesma precisa — cabendo tudo, o flex nem mostra barra de
-   rolagem e fica idêntico a uma tabela única. */
-function renderSplitTable(cfg){
-  const root=document.getElementById(cfg.id); if(!root) return;
-  const wrap=root.closest('.tbl-wrap');
-  const sortState=STATE.sort[cfg.id];
-  let rows=cfg.rows.slice();
-  if(sortState){ const {key,dir}=sortState; const c=cfg.cols.find(x=>x.key===key);
-    rows.sort((a,b)=>{ let va=a.cells[key], vb=b.cells[key];
-      if(c && c.type==='dim'){ va=norm(va); vb=norm(vb); return dir==='asc'?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0); }
-      va=(va==null||!isFinite(va))?-Infinity:va; vb=(vb==null||!isFinite(vb))?-Infinity:vb;
-      return dir==='asc'?va-vb:vb-va; }); }
-  const ext={};
-  cfg.cols.forEach(c=>{ if(c.heat){ const vs=rows.map(r=>r.cells[c.key]).filter(v=>v!=null&&isFinite(v)); ext[c.key]=[Math.min(...vs),Math.max(...vs)]; }});
-  const fmt=(t,v)=> t==='brl'?brl(v):t==='pct'?pct(v):t==='int'?intf(v):t==='num'?numf(v):t==='date'?brdate(v):t==='html'?(v==null?'-':String(v)):dimf(v);
-  const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
-  const leftCols=cfg.cols.filter(c=>c.band==='l'), rightCols=cfg.cols.filter(c=>c.band==='r'), midCols=cfg.cols.filter(c=>!c.band);
-  function section(cols){
-    const widths=cols.map(c=>colWidth(cfg,c)); const totalW=widths.reduce((a,b)=>a+b,0);
-    const colgroup='<colgroup>'+cols.map((c,i)=>`<col style="width:${widths[i]}px">`).join('')+'</colgroup>';
-    const thead='<thead><tr>'+cols.map(c=>{
-      const sc = sortState&&sortState.key===c.key ? (sortState.dir==='asc'?'sorted-asc':'sorted-desc') : '';
-      return `<th class="${c.type==='dim'?'dim ':''}${sc}" data-k="${c.key}" title="${esc(c.label)}">${c.label}<span class="rsz"></span></th>`;
-    }).join('')+'</tr></thead>';
-    const tbody='<tbody>'+rows.map(r=>{
-      const sel = cfg.selectable && cfg.selSet && cfg.selSet.has(r.k);
-      const tds=cols.map(c=>{
-        const v=r.cells[c.key]; let bg='';
-        if(c.heat && ext[c.key]) bg=`background:${heat(v,ext[c.key][0],ext[c.key][1],c.heat)}`;
-        const cls=(c.type==='dim'?'dim':'')+(c.cls&&c.cls(r)?' '+c.cls(r):'');
-        const ttl=c.type==='html'?'':` title="${esc(fmtStd(c.type,v))}"`;
-        return `<td class="${cls}" style="${bg}"${ttl}>${fmt(c.type,v)}</td>`;
-      }).join('');
-      return `<tr class="${sel?'sel':''}" data-k="${encodeURIComponent(r.k)}">${tds}</tr>`;
-    }).join('')+'</tbody>';
-    let tfoot='';
-    if(cfg.total){ tfoot='<tfoot><tr>'+cols.map(c=>{
-      const v=cfg.total[c.key]; const isFirst=cfg.cols.indexOf(c)===0&&v==null;
-      return `<td class="${c.type==='dim'?'dim':''}" title="${isFirst?'Total Geral':esc(fmtStd(c.type,v))}">${isFirst?'Total Geral':fmt(c.type,v)}</td>`;
-    }).join('')+'</tr></tfoot>'; }
-    return `<table class="dt${cfg.center?' dt-center':''}" style="width:${totalW}px">${colgroup}${thead}${tbody}${tfoot}</table>`;
-  }
-  // altura de cada seção = a mesma altura máxima do .tbl-wrap ancestral
-  // (tbl-normal/tbl-double/inline) — rolam juntas dentro do mesmo limite
-  // visual de sempre, sem precisar que o .tbl-wrap role por fora.
-  const maxH=wrap?parseFloat(getComputedStyle(wrap).maxHeight):NaN;
-  const hStyle=isFinite(maxH)?` style="max-height:${maxH}px"`:'';
-  // troca a própria tag por <div> (um <table> não pode ter <div> como filho —
-  // o parser HTML descarta; outerHTML recria o nó com a tag certa). Funciona
-  // tanto na 1ª renderização (raiz ainda é a <table> do template) quanto nas
-  // seguintes (raiz já é a <div class="dt-split"> da renderização anterior).
-  root.outerHTML =
-    `<div id="${cfg.id}" class="dt-split">`+
-      `<div class="dt-split-fixed dt-split-l"${hStyle}>${section(leftCols)}</div>`+
-      `<div class="dt-split-scroll"${hStyle}>${section(midCols)}</div>`+
-      `<div class="dt-split-fixed dt-split-r"${hStyle}>${section(rightCols)}</div>`+
-    `</div>`;
-  const fresh=document.getElementById(cfg.id);
-  // Preenche a seção do MEIO até a largura do card: distribui a sobra
-  // proporcionalmente entre as colunas, calculando a soma EXATA em JS (o
-  // navegador não decide nada — some certinho). Assim nunca sobra um vão em
-  // branco à direita nem a última coluna (ROAS) incha sozinha. Se as colunas já
-  // não couberem, mantém a soma e deixa rolar horizontalmente.
-  function fitMid(){
-    const scroll=fresh.querySelector('.dt-split-scroll'); if(!scroll) return;
-    const tbl=scroll.querySelector('table'); if(!tbl) return;
-    const colEls=[...tbl.querySelector('colgroup').children]; if(!colEls.length) return;
-    let ws=colEls.map(col=>parseFloat(col.style.width)||col.offsetWidth||60);
-    const cur=ws.reduce((a,b)=>a+b,0), avail=scroll.clientWidth;
-    scroll.dataset.avail=avail;
-    if(avail>cur+0.5){
-      const factor=avail/cur; let acc=0;
-      ws=ws.map((w,i)=> i===ws.length-1 ? (avail-acc) : (acc+=Math.round(w*factor), Math.round(w*factor)) );
-      colEls.forEach((col,i)=>col.style.width=ws[i]+'px');
-      tbl.style.width=avail+'px';
-    } else { tbl.style.width=cur+'px'; }
-  }
-  fitMid();
-  // as 3 tabelas são DOM independentes — mesmo com o mesmo conteúdo/CSS, a
-  // altura de cada linha pode divergir por 1px entre elas (ex.: a barra de
-  // rolagem horizontal do miolo, quando aparece, consome espaço vertical só
-  // NAQUELA seção). Sem isso as linhas visualmente "descolam" à medida que o
-  // desalinho acumula. Mede a altura natural de cada linha (cabeçalho, corpo
-  // e rodapé) nas 3 seções e trava todas na maior — assim ficam sempre
-  // pixel-a-pixel alinhadas, como se fosse 1 tabela só.
-  function syncRowHeights(){
-    const tables=[fresh.querySelector('.dt-split-l table'), fresh.querySelector('.dt-split-scroll table'), fresh.querySelector('.dt-split-r table')];
-    if(tables.some(t=>!t)) return;
-    const rowsOf=t=>[...t.querySelectorAll('thead tr, tbody tr, tfoot tr')];
-    const trsList=tables.map(rowsOf);
-    const n=Math.min(...trsList.map(a=>a.length));
-    trsList.forEach(a=>a.forEach(tr=>{ tr.style.height=''; }));
-    const heights=[];
-    for(let i=0;i<n;i++) heights[i]=Math.max(...trsList.map(a=>a[i].offsetHeight));
-    for(let i=0;i<n;i++) trsList.forEach(a=>{ a[i].style.height=heights[i]+'px'; });
-  }
-  syncRowHeights();
-  // as 3 seções rolam verticalmente cada uma por conta própria (CSS acima) —
-  // sincroniza scrollTop entre elas pra se comportarem como 1 tabela só,
-  // não importa sobre qual seção o mouse rolou.
-  const secs=[...fresh.querySelectorAll('.dt-split-l, .dt-split-scroll, .dt-split-r')];
-  let syncing=false;
-  secs.forEach(el=>el.addEventListener('scroll',()=>{
-    if(syncing) return; syncing=true;
-    secs.forEach(o=>{ if(o!==el) o.scrollTop=el.scrollTop; });
-    requestAnimationFrame(()=>{ syncing=false; });
-  }));
-  // sort: clicar em QUALQUER cabeçalho (das 3 tabelas) reordena as 3 juntas
-  fresh.querySelectorAll('thead th').forEach(th=>{
-    th.addEventListener('click',e=>{ if(e.target.classList.contains('rsz'))return;
-      const k=th.dataset.k, cur=STATE.sort[cfg.id];
-      if(!cur||cur.key!==k) STATE.sort[cfg.id]={key:k,dir:'asc'};
-      else if(cur.dir==='asc') STATE.sort[cfg.id]={key:k,dir:'desc'};
-      else delete STATE.sort[cfg.id];
-      renderSplitTable(cfg);
-    });
-  });
-  // resize: cada coluna só afeta a largura da SUA seção (as 3 tabelas são
-  // independentes, então redimensionar ao vivo não desalinha nada).
-  // Na seção do MEIO a regra é diferente: arrastar uma coluna ROUBA a
-  // largura da coluna vizinha, mantendo o TOTAL da tabela igual — assim dá pra
-  // ajustar as colunas do meio sem nunca reduzir a largura total nem reabrir o
-  // vão à direita. A última coluna e as bandas fixas (dim/gasto) crescem a
-  // tabela como antes, mas travadas pra nunca ficarem menores que o card.
-  fresh.querySelectorAll('thead th .rsz').forEach(g=>{
-    g.addEventListener('mousedown',e=>{ e.preventDefault(); e.stopPropagation();
-      const th=g.parentElement, k=th.dataset.k, x0=e.clientX;
-      const sectionTable=th.closest('table'), ths=[...th.parentElement.children];
-      const ci=ths.indexOf(th), colEls=[...sectionTable.querySelector('colgroup').children];
-      const col=colEls[ci], w0=col.offsetWidth, tw0=sectionTable.offsetWidth;
-      const scroll=sectionTable.closest('.dt-split-scroll');
-      const isMid=!!scroll, avail=scroll?(parseFloat(scroll.dataset.avail)||scroll.clientWidth):0;
-      // vizinho que cede/recebe largura (só no meio, e só se NÃO for a última coluna)
-      const nbr=(isMid && ci<colEls.length-1) ? colEls[ci+1] : null;
-      const wn0=nbr?nbr.offsetWidth:0;
-      const saveW=(cel,px)=>{ const kk=ths[colEls.indexOf(cel)].dataset.k; STATE.colw[cfg.id]=STATE.colw[cfg.id]||{}; STATE.colw[cfg.id][kk]=px; };
-      document.body.style.userSelect='none';
-      const mv=ev=>{ const dx=ev.clientX-x0;
-        if(nbr){ // troca com o vizinho: soma dos dois é constante -> total intacto
-          let nw=Math.min(Math.max(60,w0+dx), w0+wn0-60); let nn=w0+wn0-nw;
-          col.style.width=nw+'px'; nbr.style.width=nn+'px'; saveW(col,nw); saveW(nbr,nn);
-        } else { // última coluna do meio / bandas fixas: cresce a tabela, sem encolher abaixo do card
-          let nw=Math.max(60,w0+dx); let tw=tw0-w0+nw;
-          if(isMid && tw<avail){ nw+=avail-tw; tw=avail; }   // trava: nunca deixa vão à direita
-          col.style.width=nw+'px'; sectionTable.style.width=tw+'px'; saveW(col,nw);
-        } };
-      const up=()=>{ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.style.userSelect=''; if(!isMid) fitMid(); syncRowHeights(); localStorage.setItem('dm_colw',JSON.stringify(STATE.colw)); };
-      document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
-    });
-    g.addEventListener('dblclick',e=>{ e.preventDefault(); e.stopPropagation();
-      const th=g.parentElement, k=th.dataset.k, c=cfg.cols.find(x=>x.key===k);
-      const nw=autoColWidth(cfg,c);
-      STATE.colw[cfg.id]=STATE.colw[cfg.id]||{}; STATE.colw[cfg.id][k]=nw;
-      localStorage.setItem('dm_colw',JSON.stringify(STATE.colw));
-      renderSplitTable(cfg);
-    });
-  });
-  if(cfg.selectable && cfg.onSelect){
-    fresh.querySelectorAll('tbody tr').forEach(tr=>{
-      tr.addEventListener('click',e=>{ cfg.onSelect(decodeURIComponent(tr.dataset.k), e); });
-    });
-  }
-  // as 3 <tbody> são tabelas separadas — sem isso, passar o mouse só acende
-  // hover na seção sob o cursor (banda esquerda/miolo/banda direita "brigam"
-  // em vez de se comportar como 1 linha só). data-k é o mesmo nas 3 seções
-  // (mesma `r.k` da linha), então usamos ele pra achar e acender as 3 juntas.
-  fresh.querySelectorAll('tbody tr[data-k]').forEach(tr=>{
-    const k=tr.dataset.k;
-    const twins=()=>fresh.querySelectorAll(`tbody tr[data-k="${CSS.escape(k)}"]`);
-    tr.addEventListener('mouseenter',()=>twins().forEach(t=>t.classList.add('row-hover')));
-    tr.addEventListener('mouseleave',()=>twins().forEach(t=>t.classList.remove('row-hover')));
-  });
-  if(cfg.afterRender) cfg.afterRender(fresh, rows);
 }
 /* Heatmap por coluna: cor FIXA por métrica (definida em identidade-visual.css),
    só a OPACIDADE varia com o valor (maior valor = mais vibrante). */

@@ -204,13 +204,6 @@
   table.dt tbody tr{cursor:pointer}
   table.dt tbody tr:hover{background:var(--accent-blue-light)}
   table.dt tbody tr.sel{background:var(--selected)}
-  /* .dt-split = 3 <table> separadas (banda esquerda/miolo/banda direita) pra
-     uma linha só; :hover nativo só acende a seção sob o cursor, então o hover
-     "de verdade" é feito via JS (classe .row-hover espelhada nas 3 seções —
-     ver renderSplitTable em app.js) e o :hover nativo é desligado aqui. */
-  .dt-split table.dt tbody tr:hover{background:inherit}
-  .dt-split table.dt tbody tr.row-hover{background:var(--accent-blue-light)}
-  .dt-split table.dt tbody tr.sel.row-hover{background:var(--selected)}
   table.dt tfoot td{position:sticky; bottom:0; background:var(--tfoot); font-weight:700; border-top:2px solid var(--border); text-align:right}
   table.dt tfoot td.dim{text-align:left}
   /* Mar01: tabelas diárias com dados centralizados (a dimensão/Dia continua à esquerda) */
@@ -306,25 +299,17 @@
   table.dt.rel-adt .stk-l1{left:0; border-right:1px solid var(--border)}
   table.dt.rel-adt .stk-r{right:0; border-left:1px solid var(--border)}
 
-  /* tabelas hierárquicas (Campanha/Conjunto/Anúncio): 3 <table> independentes
-     lado a lado (esquerda fixa · meio com scroll próprio · direita fixa —
-     renderSplitTable em app.js). Cada seção rola VERTICALMENTE por conta
-     própria (max-height igual ao do .tbl-wrap ancestral, aplicado inline por
-     seção + overflow-y:auto aqui) — sticky nativo do thead/tfoot funciona sem
-     ressalva alguma dentro de cada uma, e um listener de scroll em app.js
-     sincroniza as 3. Barra de rolagem vertical só aparece na seção do meio
-     (as fixas escondem a própria); cabendo tudo em qualquer seção, ela
-     simplesmente não aparece e fica idêntico a uma tabela única. */
-  .dt-split{display:flex; align-items:flex-start; min-width:100%}
-  .dt-split table.dt{min-width:0; width:auto}
-  .dt-split-fixed{flex:0 0 auto; overflow-y:auto; overflow-x:hidden; scrollbar-width:none}
-  .dt-split-fixed::-webkit-scrollbar{display:none}
-  .dt-split-scroll{flex:1 1 160px; min-width:100px; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent}
-  .dt-split-scroll::-webkit-scrollbar{height:7px; width:7px}
-  .dt-split-scroll::-webkit-scrollbar-track{background:transparent}
-  .dt-split-scroll::-webkit-scrollbar-thumb{background:var(--border); border-radius:999px}
-  .dt-split-l table{border-right:1px solid var(--border)}
-  .dt-split-r table{border-left:1px solid var(--border)}
+  /* tabelas hierárquicas (Campanha/Conjunto/Anúncio): dim+Gasto travados à
+     esquerda (band:'l' em app.js, colunas .stl com "left" acumulado calculado
+     em JS — mesmo mecanismo do .stk-l1/.stk-r acima, generalizado pra N
+     colunas). É sempre UMA <table> só (nunca 3 tabelas separadas) — as linhas
+     não têm como desalinhar entre si, o navegador cuida disso nativamente. */
+  table.dt td.stl, table.dt th.stl{position:sticky; z-index:1; background:var(--surface)}
+  table.dt thead th.stl{z-index:3; background:var(--thead)}
+  table.dt tfoot td.stl{position:sticky; z-index:1; background:var(--tfoot)}
+  table.dt tbody tr:hover td.stl{background:var(--accent-blue-light)}
+  table.dt tbody tr.sel td.stl{background:var(--selected)}
+  table.dt .stl-last{border-right:1px solid var(--border)}
   .rel-adlink{font-size:12px; font-weight:600; color:var(--accent-blue); text-decoration:none; white-space:nowrap}
   .rel-adlink:hover{text-decoration:underline}
   .rel-adlink.off{color:var(--muted); font-weight:400}
