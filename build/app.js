@@ -619,9 +619,11 @@ function renderGeralCore(ids){
     groupFunnelStep('Leads no Grupo (Meta)', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), nAds, g),
     groupFunnelStep('Leads no Grupo (Total)', groupActive(), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
+    ['Caixa', s.receita!=null?brl(s.receita):NA,
+      [['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      s.receita==null, 'hl-fat'],
     ['Faturamento', s.fat!=null?brl(s.fat):NA,
-      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA],
-       ['Caixa',s.receita!=null?brl(s.receita):NA],['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA]],
       s.fat==null, 'hl-fat'],
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
@@ -1001,9 +1003,11 @@ function renderMeta(){
     ['Leads', intf(t.leads), [['CPL',brl(dv.cpl)],['ConvLP',pct(dv.convlp)]]],
     groupFunnelStep('Leads no Grupo', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
+    ['Caixa', s.receita!=null?brl(s.receita):NA,
+      [['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      s.receita==null, 'hl-fat'],
     ['Faturamento', s.fat!=null?brl(s.fat):NA,
-      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA],
-       ['Caixa',s.receita!=null?brl(s.receita):NA],['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA]],
       s.fat==null, 'hl-fat'],
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);

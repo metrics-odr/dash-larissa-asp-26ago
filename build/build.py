@@ -526,20 +526,30 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
 
     group = build_group_records(group_rows)
 
-    # Vendas: um registro POR COMPRA (nunca agregada), na data real da compra.
-    # TODA venda entra (aparece na Visão Geral e nos totais) — decisão do
-    # cliente: "todas as vendas entram na Geral, só as atribuídas ao Meta
-    # entram no Meta". camp/adset/ad vem da 1a conversa cujo TELEFONE OU E-MAIL
-    # bate com o comprador (telefone tem prioridade; e-mail é o fallback quando
-    # o telefone não casa — nunca UTM, essa aba de vendas não tem UTM próprio).
-    # Quando NÃO há conversa correspondente por nenhum dos dois (comprou por
-    # outro canal, ou os dados de contato divergem demais), a venda ainda
-    # conta, porém SEM atribuição de anúncio: cai em "(sem campanha)" /
-    # src="org" — some da quebra por campanha do Meta, mas nunca dos totais.
+    # Vendas: um registro POR COMPRA (nunca agregada), na data real da compra
+    # (data_envio da própria planilha de Vendas — NUNCA a data da conversa: usar
+    # a data da conversa como proxy faria uma venda antiga/sem data aparecer
+    # como "venda de hoje" só porque o comprador também é um lead recente,
+    # distorcendo o dia errado do funil). TODA venda COM DATA entra na dash
+    # (aparece na Visão Geral e nos totais) — decisão do cliente: "todas as
+    # vendas entram na Geral, só as atribuídas ao Meta entram no Meta". Vendas
+    # SEM data_envio na planilha de origem são descartadas aqui (não há como
+    # posicioná-las corretamente em nenhum período) — contabilizadas só no log.
+    # camp/adset/ad vem da 1a conversa cujo TELEFONE OU E-MAIL bate com o
+    # comprador (telefone tem prioridade; e-mail é o fallback quando o telefone
+    # não casa — nunca UTM, essa aba de vendas não tem UTM próprio). Quando NÃO
+    # há conversa correspondente por nenhum dos dois (comprou por outro canal,
+    # ou os dados de contato divergem demais), a venda ainda conta, porém SEM
+    # atribuição de anúncio: cai em "(sem campanha)" / src="org" — some da
+    # quebra por campanha do Meta, mas nunca dos totais.
     sales = []
+    sem_data = 0
     NO_ATTRIB = {"src": "org", "camp": "(sem campanha)", "adset": "(sem conjunto)",
                  "ad": "(sem anúncio)", "d": None}
     for p in sales_index:
+        if not p["d"]:
+            sem_data += 1
+            continue
         attrib = None
         if p["phone"]:
             attrib = phone_attrib.get(canon_phone(p["phone"]))
@@ -547,7 +557,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
             attrib = email_attrib.get(p["email"])
         attrib = attrib or NO_ATTRIB
         sales.append({
-            "d": p["d"] or attrib["d"],
+            "d": p["d"],
             "src": attrib["src"],
             "camp": attrib["camp"],
             "adset": attrib["adset"],
@@ -558,6 +568,10 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
         })
 
     log_unmatched_sales(sales_index, phone_attrib, email_attrib)
+    if sem_data:
+        print(f"  {sem_data} compra(s) SEM data_envio na planilha de Vendas — descartadas "
+              f"(não entram em nenhum período; não usamos a data da conversa como proxy)",
+              file=sys.stderr)
 
     # Diagnóstico da origem dos leads: quantos são "certeza Meta" (entram no
     # painel de mídia paga) vs. link na bio / sem UTM (só na Visão Geral).
