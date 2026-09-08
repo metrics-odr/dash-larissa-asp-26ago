@@ -347,9 +347,12 @@ def build_sales_index(sales_rows):
     [{"phone":.., "email":.., "d":.., "fat":.., "receita":.., "nm":..}, ...], UMA
     ENTRADA POR LINHA (nao agregada). "fat" = faturamentoVenda (valor total
     contratado da venda) · "receita" = caixaVenda (entrada/receita já recebida).
-    Cruzamento em process() é por TELEFONE OU E-MAIL (nunca por UTM — esta aba
-    não tem campanha/anúncio próprios). Linhas sem telefone válido E sem e-mail
-    válido são descartadas aqui (não há como cruzar com nenhum lead).
+    "d" (data_envio) NÃO é usado para posicionar a venda no funil — a
+    atribuição é por COORTE, pela data de cadastro do lead cruzado (ver
+    process()); fica aqui só de referência/diagnóstico. Cruzamento em
+    process() é por TELEFONE OU E-MAIL (nunca por UTM — esta aba não tem
+    campanha/anúncio próprios). Linhas sem telefone válido E sem e-mail válido
+    são descartadas aqui (não há como cruzar com nenhum lead).
     "nm" (nome, sem mascara) fica só p/ diagnóstico de venda não casada
     (log_unmatched_sales) — nunca é exportado em sales[]/DATA."""
     header = sales_rows[0] if sales_rows else []
@@ -455,12 +458,12 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
     )
 
     leads = []
-    # atribuicao do ANUNCIO/campanha de uma venda por telefone: a 1a conversa
-    # daquele telefone (a mais antiga de fato) e' quem levou aquele contato a
-    # comprar, entao e' ela que define camp/adset/ad da venda — evita atribuir
-    # a mesma compra a mais de uma conversa quando o numero aparece varias vezes.
-    # A DATA da venda, porem, e' a data real da compra (aba Compradores), nunca
-    # a data da conversa — datas diferentes nao devem ser somadas no mesmo dia.
+    # atribuicao do ANUNCIO/campanha/DATA de uma venda por telefone (ou
+    # e-mail): a 1a conversa daquele contato (a mais antiga de fato) e' quem
+    # levou aquele lead a comprar, entao e' ela que define camp/adset/ad E a
+    # data da venda (atribuicao por COORTE — ver process() mais abaixo) —
+    # evita atribuir a mesma compra a mais de uma conversa quando o numero/
+    # e-mail aparece varias vezes.
     rows_sorted = sorted(
         [r for r in conversas_rows[1:] if any((c or "").strip() for c in r)],
         key=lambda r: parse_date(cell(r, cidx["created"])) or "",
@@ -526,26 +529,24 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
 
     group = build_group_records(group_rows)
 
-    # Vendas: um registro POR COMPRA (nunca agregada), na data real da compra
-    # (data_envio da própria planilha de Vendas — NUNCA a data da conversa: usar
-    # a data da conversa como proxy faria uma venda antiga/sem data aparecer
-    # como "venda de hoje" só porque o comprador também é um lead recente,
-    # distorcendo o dia errado do funil). Decisão do cliente: a dashboard deve
-    # refletir SÓ o que foi efetivamente CRUZADO com a Lista de Leads — venda
-    # sem correspondência por TELEFONE OU E-MAIL (comprou por outro canal, ou
-    # os dados de contato divergem) é DESCARTADA aqui, não entra em lugar
-    # nenhum (nem Visão Geral, nem totais). camp/adset/ad da venda vem da 1a
-    # conversa cujo telefone (prioridade) ou e-mail (fallback) bate com o
-    # comprador — nunca UTM, essa aba de vendas não tem UTM próprio. Vendas SEM
-    # data_envio na planilha de origem também são descartadas (não há como
-    # posicioná-las corretamente em nenhum período). Ambos os descartes só
-    # contam no log (stderr), nunca no site.
+    # Vendas: um registro POR COMPRA (nunca agregada). ATRIBUIÇÃO POR COORTE
+    # (decisão do cliente): a venda entra na data de CADASTRO do lead (a 1ª
+    # conversa cujo telefone/e-mail bate com o comprador) — NUNCA na data real
+    # da compra (data_envio da planilha de Vendas é usada só pra registro
+    # histórico, não pra posicionar a venda no tempo). Isso mede o valor que
+    # cada dia/campanha de captura efetivamente gerou, ainda que a venda só
+    # tenha fechado semanas/meses depois — em vez de misturar no dia da
+    # cobrança leads captados em datas (e campanhas) completamente diferentes.
+    # Só entra na dash a venda efetivamente CRUZADA com a Lista de Leads —
+    # venda sem correspondência por TELEFONE OU E-MAIL (comprou por outro
+    # canal, ou os dados de contato divergem) é DESCARTADA, não entra em lugar
+    # nenhum (nem Visão Geral, nem totais). camp/adset/ad da venda vem da MESMA
+    # conversa que dá a data (telefone tem prioridade; e-mail é o fallback
+    # quando o telefone não casa — nunca UTM, essa aba de vendas não tem UTM
+    # próprio).
     sales = []
-    sem_data = sem_match = 0
+    sem_match = sem_data_lead = 0
     for p in sales_index:
-        if not p["d"]:
-            sem_data += 1
-            continue
         attrib = None
         if p["phone"]:
             attrib = phone_attrib.get(canon_phone(p["phone"]))
@@ -554,8 +555,11 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
         if attrib is None:
             sem_match += 1
             continue
+        if not attrib["d"]:
+            sem_data_lead += 1   # lead casou, mas a própria conversa não tinha data parseável (raro)
+            continue
         sales.append({
-            "d": p["d"],
+            "d": attrib["d"],   # data de CADASTRO do lead (coorte), não a data da compra
             "src": attrib["src"],
             "camp": attrib["camp"],
             "adset": attrib["adset"],
@@ -566,13 +570,13 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
         })
 
     log_unmatched_sales(sales_index, phone_attrib, email_attrib)
-    if sem_data:
-        print(f"  {sem_data} compra(s) SEM data_envio na planilha de Vendas — descartadas "
-              f"(não entram em nenhum período; não usamos a data da conversa como proxy)",
-              file=sys.stderr)
     if sem_match:
         print(f"  {sem_match} compra(s) SEM correspondência por telefone/e-mail na Lista de "
               f"Leads — descartadas (a dashboard só mostra vendas efetivamente cruzadas)",
+              file=sys.stderr)
+    if sem_data_lead:
+        print(f"  {sem_data_lead} compra(s) cruzada(s) mas com data de cadastro do lead "
+              f"não-parseável — descartadas (atribuição por coorte precisa dessa data)",
               file=sys.stderr)
 
     # Diagnóstico da origem dos leads: quantos são "certeza Meta" (entram no
