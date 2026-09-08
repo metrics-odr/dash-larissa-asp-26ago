@@ -240,7 +240,7 @@ Sem a coluna, o link vira "—".
 > **Layout modular:** o front-end é separado em `identidade-visual.css` + `estilos.css`
 > + `app.js`, costurados por `render()` nos placeholders `__STYLES__`/`__APP_JS__`.
 > Página 1 usa **funil vertical de leads** + KPIs secundários. Topbar tem
-> **seletor de período em calendário** (default `20–27/07/2026` — preset `padrao`
+> **seletor de período em calendário** (default `20–27/08/2026` — preset `padrao`
 > em `PRESETS`/`DEFAULT_FROM`/`DEFAULT_TO`, `app.js`; também o destino do botão
 > "Remover Filtros"). **Heatmap** = cor FIXA
 > por métrica (só opacidade varia): **Gasto=vermelho · Leads=azul · MQLs=ciano ·

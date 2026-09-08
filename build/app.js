@@ -26,7 +26,7 @@ const TODAY = B.today || B.date_max;
 /* ---------------- STATE ---------------- */
 /* período padrão do relatório (pedido do cliente): 20 a 27 de julho — ver preset
    'padrao' em PRESETS, usado também pelo botão "Limpar filtros". */
-const DEFAULT_FROM='2026-07-20', DEFAULT_TO='2026-07-27';
+const DEFAULT_FROM='2026-08-20', DEFAULT_TO='2026-08-27';
 const STATE = {
   page:'geral', from:DEFAULT_FROM, to:DEFAULT_TO, preset:'padrao', tax:true,
   selDays:new Set(),
@@ -1080,7 +1080,7 @@ function renderMeta(){
 
 /* ---------------- date presets ---------------- */
 const PRESETS=[
-  ['padrao','20–27 jul',()=>[DEFAULT_FROM,DEFAULT_TO]],
+  ['padrao','20–27 ago',()=>[DEFAULT_FROM,DEFAULT_TO]],
   ['hoje','Hoje',()=>[TODAY,TODAY]],
   ['ontem','Ontem',()=>[addDays(TODAY,-1),addDays(TODAY,-1)]],
   ['3d','3 dias',()=>[addDays(TODAY,-2),TODAY]],
