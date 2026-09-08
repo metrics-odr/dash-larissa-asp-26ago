@@ -24,8 +24,11 @@ function addDays(s,n){const dt=new Date(s+'T00:00:00');dt.setDate(dt.getDate()+n
 const TODAY = B.today || B.date_max;
 
 /* ---------------- STATE ---------------- */
+/* período padrão do relatório (pedido do cliente): 20 a 27 de julho — ver preset
+   'padrao' em PRESETS, usado também pelo botão "Limpar filtros". */
+const DEFAULT_FROM='2026-07-20', DEFAULT_TO='2026-07-27';
 const STATE = {
-  page:'geral', from:(()=>{const [y,m]=TODAY.split('-'); return `${y}-${m}-01`;})(), to:TODAY, preset:'mes', tax:true,
+  page:'geral', from:DEFAULT_FROM, to:DEFAULT_TO, preset:'padrao', tax:true,
   selDays:new Set(),
   mSelC:new Set(), mSelA:new Set(), mSelAd:new Set(),
   fFunil:'', fTemp:'',   // seletores de Funil / Temperatura (página Meta Ads)
@@ -616,7 +619,10 @@ function renderGeralCore(ids){
     groupFunnelStep('Leads no Grupo (Meta)', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), nAds, g),
     groupFunnelStep('Leads no Grupo (Total)', groupActive(), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
-    ['Faturamento', s.fat!=null?brl(s.fat):NA, [['ROAS',s.roas!=null?numf(s.roas):NA],['Ticket',s.tm!=null?brl(s.tm):NA]], s.fat==null, 'hl-fat'],
+    ['Faturamento', s.fat!=null?brl(s.fat):NA,
+      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA],
+       ['Caixa',s.receita!=null?brl(s.receita):NA],['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      s.fat==null, 'hl-fat'],
   ];
   document.getElementById(ids.funnel).innerHTML=funnelHTML(steps);
   // ---- Mar05: métricas secundárias mais úteis (não repetem o funil) ----
@@ -753,6 +759,7 @@ function adRowCells(ad,a,struct){
     gasto:d.gasto, im:a.im, cpm:d.cpm, ctr:d.ctr,
     leads:a.leads, cpl:d.cpl, chk:d.chk,
     vendas:s.vendas, cac:s.cac, fat:s.fat, roas:s.roas,
+    receita:s.receita, roasReceita:s.roasReceita,
     link:adLinkCell(ad),
     _cpl:d.cpl, _cac:s.cac, status:null};   // valores crus p/ colorir vs meta
 }
@@ -769,7 +776,9 @@ function relRenderAdTable(id,list){
     {key:'vendas',label:'Vendas',type:'int'},
     {key:'cac',label:'CAC',type:'brl'},
     {key:'fat',label:'Faturamento',type:'brl'},
-    {key:'roas',label:'ROAS',type:'num'},
+    {key:'roas',label:'ROAS-F',type:'num'},
+    {key:'receita',label:'Caixa',type:'brl'},
+    {key:'roasReceita',label:'ROAS-C',type:'num'},
     {key:'link',label:'Link',type:'html',w:90,stk:'r'},
   ];
   const rows=list.map(item=>{
@@ -946,14 +955,16 @@ const DAILY_COLS=[
   {key:'leads',label:'Leads',type:'int',heat:'leads'},{key:'cpl',label:'CPL',type:'brl'},
   {key:'chk',label:'Checkouts',type:'int'},{key:'vischk',label:'VisCHK',type:'pct'},
   {key:'vendas',label:'Vendas',type:'int',heat:'vendas'},{key:'cac',label:'CAC',type:'brl'},
-  {key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS',type:'num',heat:'roas'},
+  {key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS-F',type:'num',heat:'roas'},
+  {key:'receita',label:'Caixa',type:'brl'},{key:'roasReceita',label:'ROAS-C',type:'num'},
 ];
 function dailyCells(x,d,isTotal){
   const s=salesOf(x);
   return {date:isTotal?null:x.d, wd:isTotal?'':weekday(x.d), gasto:d.gasto, cpm:d.cpm, ctr:d.ctr, cr:d.cr, convlp:d.convlp,
     chk:d.chk, vischk:d.vischk,
     leads:x.leads, cpl:d.cpl, tx:d.tx, mqls:x.mqls, cpmql:d.cpmql,
-    convmql:s.convmql, vendas:s.vendas, cac:s.cac, fat:s.fat, receita:s.receita, roas:s.roas};
+    convmql:s.convmql, vendas:s.vendas, cac:s.cac, fat:s.fat, roas:s.roas,
+    receita:s.receita, roasReceita:s.roasReceita};
 }
 
 /* ---------------- PAGE 2: Captura Meta Ads ---------------- */
@@ -990,7 +1001,10 @@ function renderMeta(){
     ['Leads', intf(t.leads), [['CPL',brl(dv.cpl)],['ConvLP',pct(dv.convlp)]]],
     groupFunnelStep('Leads no Grupo', groupActive().filter(gr=>gr.src==='meta'||gr.src==='google'), t.leads, g),
     ['Vendas', s.vendas!=null?intf(s.vendas):NA, [['Conv',s.vendas!=null&&t.leads?pct(s.vendas/t.leads):NA],['CAC',s.cac!=null?brl(s.cac):NA]], s.vendas==null],
-    ['Faturamento', s.fat!=null?brl(s.fat):NA, [['ROAS',s.roas!=null?numf(s.roas):NA],['Ticket',s.tm!=null?brl(s.tm):NA]], s.fat==null, 'hl-fat'],
+    ['Faturamento', s.fat!=null?brl(s.fat):NA,
+      [['ROAS-F',s.roas!=null?numf(s.roas):NA],['Ticket-F',s.tm!=null?brl(s.tm):NA],
+       ['Caixa',s.receita!=null?brl(s.receita):NA],['ROAS-C',s.roasReceita!=null?numf(s.roasReceita):NA],['Ticket-C',s.tmReceita!=null?brl(s.tmReceita):NA]],
+      s.fat==null, 'hl-fat'],
   ];
   document.getElementById('metaFunnel').innerHTML=funnelHTML(steps);
 
@@ -1001,13 +1015,15 @@ function renderMeta(){
   // Compilado dos Anúncios — ordena por CAC (menor no topo); fallback CPL
   const adAggM=buildAgg(fL,fM,fS,'ad');
   const topCacRows=Object.entries(adAggM).map(([ad,a])=>{const d=derive(a),s=salesOf(a);
-    return {k:ad, cells:{dim:ad,leads:a.leads,cpl:d.cpl,vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas},
+    return {k:ad, cells:{dim:ad,leads:a.leads,cpl:d.cpl,vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas,
+      receita:s.receita,roasReceita:s.roasReceita},
       _ord:(s.cac!=null?s.cac:(d.cpl!=null?d.cpl:Infinity))};})
     .sort((a,b)=>a._ord-b._ord).slice(0,10);
   renderTable({id:'mTopCac', center:true,
     cols:[{key:'dim',label:'Anúncios',type:'dim',big:true},{key:'leads',label:'Leads',type:'int'},
       {key:'cpl',label:'CPL',type:'brl'},{key:'vendas',label:'Vendas',type:'int'},
-      {key:'cac',label:'CAC',type:'brl'},{key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS',type:'num'}],
+      {key:'cac',label:'CAC',type:'brl'},{key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS-F',type:'num'},
+      {key:'receita',label:'Caixa',type:'brl'},{key:'roasReceita',label:'ROAS-C',type:'num'}],
     rows:topCacRows});
 
   const dl=daily(fL,fM,fS).slice().reverse();
@@ -1030,13 +1046,14 @@ function renderMeta(){
     {key:'leads',label:'Leads',type:'int'},{key:'cpl',label:'CPL',type:'brl'},
     {key:'chk',label:'Checkouts',type:'int'},
     {key:'vendas',label:'Vendas',type:'int'},{key:'cac',label:'CAC',type:'brl'},
-    {key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS',type:'num'},
+    {key:'fat',label:'Fat.',type:'brl'},{key:'roas',label:'ROAS-F',type:'num'},
+    {key:'receita',label:'Caixa',type:'brl'},{key:'roasReceita',label:'ROAS-C',type:'num'},
   ];
   function hierRows(map){ return Object.entries(map).map(([k,a])=>{const d=derive(a),s=salesOf(a);
     return {k, cells:{dim:k,gasto:d.gasto,cpm:d.cpm,ctr:d.ctr,cr:d.cr,convlp:d.convlp,leads:a.leads,cpl:d.cpl,chk:d.chk,
-      vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas}};}); }
+      vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas,receita:s.receita,roasReceita:s.roasReceita}};}); }
   function totRowOf(tt){const d=derive(tt),s=salesOf(tt);return{dim:null,gasto:d.gasto,cpm:d.cpm,ctr:d.ctr,cr:d.cr,convlp:d.convlp,leads:tt.leads,cpl:d.cpl,chk:d.chk,
-    vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas};}
+    vendas:s.vendas,cac:s.cac,fat:s.fat,roas:s.roas,receita:s.receita,roasReceita:s.roasReceita};}
   const Sc=metaScope('C'), Sa=metaScope('A'), Sd=metaScope('D');
   const aggC=buildAgg(Sc.fL,Sc.fM,Sc.fS,'camp'), aggA=buildAgg(Sa.fL,Sa.fM,Sa.fS,'adset'), aggD=buildAgg(Sd.fL,Sd.fM,Sd.fS,'ad');
   // Tabelas hierárquicas: NÃO usam "fit" — a dimensão (campanha/conjunto/anúncio)
@@ -1059,6 +1076,7 @@ function renderMeta(){
 
 /* ---------------- date presets ---------------- */
 const PRESETS=[
+  ['padrao','20–27 jul',()=>[DEFAULT_FROM,DEFAULT_TO]],
   ['hoje','Hoje',()=>[TODAY,TODAY]],
   ['ontem','Ontem',()=>[addDays(TODAY,-1),addDays(TODAY,-1)]],
   ['3d','3 dias',()=>[addDays(TODAY,-2),TODAY]],
@@ -1175,7 +1193,7 @@ document.getElementById('periodPop').addEventListener('click',e=>e.stopPropagati
 document.addEventListener('click',()=>{ if(ppIsOpen()) ppClose(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ppIsOpen()) ppClose(); });
 document.getElementById('clearBtn').addEventListener('click',()=>{ STATE.mSelC.clear();STATE.mSelA.clear();STATE.mSelAd.clear();STATE.selDays.clear();
-  STATE.fFunil='';STATE.fTemp=''; const sf=document.getElementById('selFunil'),st=document.getElementById('selTemp'); if(sf)sf.value='';if(st)st.value=''; applyPreset('mes'); });
+  STATE.fFunil='';STATE.fTemp=''; const sf=document.getElementById('selFunil'),st=document.getElementById('selTemp'); if(sf)sf.value='';if(st)st.value=''; applyPreset('padrao'); });
 
 /* seletores Funil / Temperatura (página Meta Ads) — filtram as tabelas de otimização */
 (function wireFunilTemp(){

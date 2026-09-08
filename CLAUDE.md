@@ -19,7 +19,9 @@ Preencha cada marcador do repositório. Ordem sugerida:
    - `GID_CONVERSAS` — gid da aba de Conversas (fonte principal de leads).
    - `GID_LEADS` — gid da aba de Leads legado (popup/form; só contada).
    - `GID_META` — gid da aba Meta Ads.
-   - `GID_SALES` — gid da aba de Compradores (New Subscriptions).
+   - `SPREADSHEET_ID_VENDAS`/`GID_VENDAS` — planilha/gid da aba de Vendas totais
+     unificadas (cruzada com a Lista de Leads por telefone/e-mail; pode ser a
+     mesma planilha central ou uma separada, conforme o cliente).
    - `CLIENT_NAME`, `MAIN_PRODUCT` — nome do cliente e da oferta principal.
    - `MAIN_PRODUCT_PREFIX` — prefixo comum às campanhas do cliente.
    - `TAX_FACTOR` — fator de imposto/taxa da mídia (1.0 = sem imposto).
@@ -78,7 +80,14 @@ Spreadsheet ID: `1aySlj8ryPjXICkRFT6SiFnEZC7z0NkN755jtoAbqQDI` ("ASP | Planilha 
 | **Conversas** (fonte principal — webhook de mensageria/WhatsApp) | `1836439885` | `Data` · `Mensagem` · `Nome` · `Telefone` · coluna de MQL · `Campanha` · `Conjunto` · `Anúncio` · `Especialidades` |
 | **Leads** (legado — popup/form antigo, só contada) | `— (não usado)` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
 | **Meta Ads** | `1059708846` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
-| **New Subscriptions** (Compradores) | `— (não usado)` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
+| **New Subscriptions** (Compradores, na planilha central) | `— (não usado)` | — |
+
+Além da planilha central, a aba de **Vendas totais unificadas** (contratos assinados)
+vive numa planilha SEPARADA — "Larissa \| Planilha Central"
+(`SPREADSHEET_ID_VENDAS = 1P7c_7rutl0fdnqIc2DX5DuGl6H9E7WRU_gzDpOdphkw`,
+`GID_VENDAS = 179764332`) — colunas usadas: `data_envio` · `nomeCompleto` ·
+`email` · `telefone` · `caixaVenda` (entrada/receita imediata) ·
+`faturamentoVenda` (valor total contratado).
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
@@ -100,31 +109,42 @@ Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`ap
 `renderGeralCore`) colore verde/cinza pelo mesmo critério, usando a coluna
 `Especialidades`/`Especialidade` como dimensão.
 
-### Vendas & Faturamento (cruzamento com Compradores)
-`build.py` → `build_sales_index()` lê a aba **New Subscriptions** e indexa por
-**telefone** (normalizado, só dígitos) → lista de compras **não agregada**,
-uma entrada por linha: `[{d, fat, receita}, ...]` (`d` = data real daquela
-compra). Em `process()`, as linhas da **Conversas** são ordenadas pela **data
-já parseada** (`parse_date`, não a string bruta) para achar a **1ª conversa**
-(mais antiga de fato) de cada telefone; essa conversa define **apenas**
-camp/adset/ad da venda (o anúncio que trouxe aquele contato) — nunca a data.
-Cada compra vira um registro próprio em `DATA.sales[]`
-(`{d, camp, adset, ad, vendas:1, fat, receita}`) com a **data real da compra**.
-No navegador, `salesActive()` (`app.js`) filtra `sales[]` pela mesma data ativa
-que `leadsActive()`/`metaActive()`, e os três arrays (`fL`/`fM`/`fS`) se
-propagam juntos em `buildAgg`/`daily`/`totals`.
+### Vendas & Faturamento (cruzamento com a aba de Vendas totais unificadas)
+`build.py` → `build_sales_index()` lê a aba **Vendas totais unificadas**
+(`SPREADSHEET_ID_VENDAS`/`GID_VENDAS`, planilha separada da central) e devolve
+uma lista de compras **não agregada**, uma entrada por linha:
+`[{phone, email, d, fat, receita, nm}, ...]` (`d` = data real daquela compra,
+`fat` = `faturamentoVenda`, `receita` = `caixaVenda`). Linhas sem telefone
+válido **e** sem e-mail válido são descartadas (não há como cruzar). Em
+`process()`, as linhas da **Lista de Leads** são ordenadas pela **data já
+parseada** (`parse_date`, não a string bruta) para achar a **1ª conversa**
+(mais antiga de fato) de cada telefone **e** de cada e-mail; essa conversa
+define **apenas** camp/adset/ad da venda (o anúncio que trouxe aquele
+contato) — nunca a data. Cada compra vira um registro próprio em
+`DATA.sales[]` (`{d, camp, adset, ad, vendas:1, fat, receita}`) com a **data
+real da compra**. No navegador, `salesActive()` (`app.js`) filtra `sales[]`
+pela mesma data ativa que `leadsActive()`/`metaActive()`, e os três arrays
+(`fL`/`fM`/`fS`) se propagam juntos em `buildAgg`/`daily`/`totals`.
 
 **TODA venda entra na dash** (regra geral: "todas as vendas entram na Visão
-Geral; só as atribuídas ao Meta entram na aba de mídia paga"). O cruzamento
-Compradores × Conversas usa `canon_phone()` — **chave canônica** = DDD +
-últimos 8 dígitos, robusta a **DDI "55"** presente/ausente e ao **9º dígito**
-do celular. Quando o telefone bate com uma conversa, a venda recebe
-camp/adset/ad daquela conversa. Quando **não** bate, a venda **ainda conta nos
-totais/Visão Geral**, porém como `(sem campanha)` / `src="org"` — some apenas da
-quebra por campanha do Meta. `log_unmatched_sales()` loga no build quantas
-vendas ficaram sem anúncio de origem. **Não** usa as colunas `Compra Detectada`
-/ `Faturamento Detectado` já calculadas na planilha (decisão de projeto: cruzar
-do zero, mais robusto a erro de fórmula).
+Geral; só as atribuídas ao Meta entram na aba de mídia paga"). O cruzamento é
+por **TELEFONE OU E-MAIL — nunca por UTM** (a aba de vendas não tem
+campanha/anúncio próprios): telefone tem prioridade (`canon_phone()` —
+**chave canônica** = DDD + últimos 8 dígitos, robusta a **DDI "55"**
+presente/ausente e ao **9º dígito** do celular); quando o telefone não bate
+com nenhuma conversa, tenta pelo e-mail (normalizado/minúsculo) como
+fallback. Quando **nenhum dos dois** bate, a venda **ainda conta nos
+totais/Visão Geral**, porém como `(sem campanha)` / `src="org"` — some apenas
+da quebra por campanha do Meta. `log_unmatched_sales()` loga no build quantas
+vendas ficaram sem anúncio de origem.
+
+**Fat. (faturamento) × Caixa (receita):** `faturamentoVenda` é o valor total
+contratado da venda; `caixaVenda` é a entrada/receita já recebida. Como as
+duas colunas nem sempre batem linha a linha na planilha de origem, o
+dashboard mostra as DUAS como métricas independentes — em toda tabela/funil
+que exibe ROAS/Ticket aparecem os dois pares: **ROAS-F/Ticket-F** (com base em
+`fat`) e **ROAS-C/Ticket-C** (com base em `receita`/Caixa). `CAC` não muda
+(é gasto/vendas, independe de Fat. × Caixa).
 
 ### Imposto da mídia paga
 `TAX_FACTOR` em `build.py` (`1.0 — sem imposto`). O toggle
@@ -173,9 +193,9 @@ e, abaixo, acrescenta 3 blocos novos + um painel de metas editável:
   Editar recolore **CPMQL/CAC** nas tabelas de anúncio (verde ≤ meta · amarelo até +30% ·
   vermelho acima) e ajusta o badge Em observação/Avaliável, **tudo ao vivo**
   (`METAS` + `renderRelAds()` em `app.js`).
-- **Top Anúncios** e **Piores Anúncios** — 17 colunas + coluna **Status** (Anúncio · Status ·
+- **Top Anúncios** e **Piores Anúncios** — coluna **Status** (Anúncio · Status ·
   Campanha · Conjunto · Gasto · Impr · CPM · CTR · Leads · CPL · MQLs · Tx‑MQL · CPMQL · ConvMQL ·
-  Vendas · CAC · Faturamento · ROAS · **Link**). Anúncio, Status e Link ficam **sticky**.
+  Vendas · CAC · Faturamento · **ROAS-F** · **Caixa** · **ROAS-C** · **Link**). Anúncio, Status e Link ficam **sticky**.
   Ranking pelo **resultado mais profundo disponível** (Venda→MQL), amostra relevante primeiro;
   sem amostra → badge **"Em observação"**. Limiares em `build.py`: `SAMPLE_MIN_SPEND`,
   `SAMPLE_MIN_MQLS`, `TOP_ADS_N`.
@@ -220,7 +240,9 @@ Sem a coluna, o link vira "—".
 > **Layout modular:** o front-end é separado em `identidade-visual.css` + `estilos.css`
 > + `app.js`, costurados por `render()` nos placeholders `__STYLES__`/`__APP_JS__`.
 > Página 1 usa **funil vertical de leads** + KPIs secundários. Topbar tem
-> **seletor de período em calendário** (default "Este mês"). **Heatmap** = cor FIXA
+> **seletor de período em calendário** (default `20–27/07/2026` — preset `padrao`
+> em `PRESETS`/`DEFAULT_FROM`/`DEFAULT_TO`, `app.js`; também o destino do botão
+> "Remover Filtros"). **Heatmap** = cor FIXA
 > por métrica (só opacidade varia): **Gasto=vermelho · Leads=azul · MQLs=ciano ·
 > Vendas=verde · ROAS=amarelo** (`--heat-gasto/leads/mqls/vendas/roas`).
 
@@ -248,7 +270,7 @@ Três **páginas separadas** (sidebar):
    Anúncios (17 colunas + Status) + Insights de Tráfego. Ver `build/GUIA-RELATORIOS.md`.
 
 **Ordem das colunas nas tabelas:** `Data · Dia · Gasto · CPM · CTR · ConvForm · Leads ·
-CPL · Tx‑MQL · MQLs · CPMQL · ConvMQL · Vendas · CAC · Fat. · Receita · ROAS`. Nas
+CPL · Tx‑MQL · MQLs · CPMQL · ConvMQL · Vendas · CAC · Fat. · ROAS-F · Caixa · ROAS-C`. Nas
 tabelas diárias entram também **Checkouts** e **VisCHK** (da coluna "Adds to Cart"
 do Meta Ads, proxy de Checkout). Sem essas colunas, ficam "-".
 
