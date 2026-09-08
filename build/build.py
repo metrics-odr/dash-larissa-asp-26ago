@@ -530,22 +530,18 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
     # (data_envio da própria planilha de Vendas — NUNCA a data da conversa: usar
     # a data da conversa como proxy faria uma venda antiga/sem data aparecer
     # como "venda de hoje" só porque o comprador também é um lead recente,
-    # distorcendo o dia errado do funil). TODA venda COM DATA entra na dash
-    # (aparece na Visão Geral e nos totais) — decisão do cliente: "todas as
-    # vendas entram na Geral, só as atribuídas ao Meta entram no Meta". Vendas
-    # SEM data_envio na planilha de origem são descartadas aqui (não há como
-    # posicioná-las corretamente em nenhum período) — contabilizadas só no log.
-    # camp/adset/ad vem da 1a conversa cujo TELEFONE OU E-MAIL bate com o
-    # comprador (telefone tem prioridade; e-mail é o fallback quando o telefone
-    # não casa — nunca UTM, essa aba de vendas não tem UTM próprio). Quando NÃO
-    # há conversa correspondente por nenhum dos dois (comprou por outro canal,
-    # ou os dados de contato divergem demais), a venda ainda conta, porém SEM
-    # atribuição de anúncio: cai em "(sem campanha)" / src="org" — some da
-    # quebra por campanha do Meta, mas nunca dos totais.
+    # distorcendo o dia errado do funil). Decisão do cliente: a dashboard deve
+    # refletir SÓ o que foi efetivamente CRUZADO com a Lista de Leads — venda
+    # sem correspondência por TELEFONE OU E-MAIL (comprou por outro canal, ou
+    # os dados de contato divergem) é DESCARTADA aqui, não entra em lugar
+    # nenhum (nem Visão Geral, nem totais). camp/adset/ad da venda vem da 1a
+    # conversa cujo telefone (prioridade) ou e-mail (fallback) bate com o
+    # comprador — nunca UTM, essa aba de vendas não tem UTM próprio. Vendas SEM
+    # data_envio na planilha de origem também são descartadas (não há como
+    # posicioná-las corretamente em nenhum período). Ambos os descartes só
+    # contam no log (stderr), nunca no site.
     sales = []
-    sem_data = 0
-    NO_ATTRIB = {"src": "org", "camp": "(sem campanha)", "adset": "(sem conjunto)",
-                 "ad": "(sem anúncio)", "d": None}
+    sem_data = sem_match = 0
     for p in sales_index:
         if not p["d"]:
             sem_data += 1
@@ -555,7 +551,9 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
             attrib = phone_attrib.get(canon_phone(p["phone"]))
         if attrib is None and p["email"]:
             attrib = email_attrib.get(p["email"])
-        attrib = attrib or NO_ATTRIB
+        if attrib is None:
+            sem_match += 1
+            continue
         sales.append({
             "d": p["d"],
             "src": attrib["src"],
@@ -571,6 +569,10 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows, group_rows=Non
     if sem_data:
         print(f"  {sem_data} compra(s) SEM data_envio na planilha de Vendas — descartadas "
               f"(não entram em nenhum período; não usamos a data da conversa como proxy)",
+              file=sys.stderr)
+    if sem_match:
+        print(f"  {sem_match} compra(s) SEM correspondência por telefone/e-mail na Lista de "
+              f"Leads — descartadas (a dashboard só mostra vendas efetivamente cruzadas)",
               file=sys.stderr)
 
     # Diagnóstico da origem dos leads: quantos são "certeza Meta" (entram no
