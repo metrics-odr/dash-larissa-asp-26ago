@@ -231,6 +231,29 @@ function renderTable(cfg){
   table.style.width=fit?'100%':totalW+'px';
   table.innerHTML=colgroup+thead+tbody+tfoot;
   const cols=table.querySelector('colgroup').children;
+  // tabelas com banda travada (Campanha/Conjunto/Anúncio): se sobrar espaço
+  // no card, estica as colunas do MIOLO (não-travadas) proporcionalmente pra
+  // preencher 100% da largura — senão cada uma fica no mínimo padrão
+  // (colWidth) e, com valores grandes (ex. "R$ 2.542,17"), corta com "…".
+  // Só entra quando sobra espaço (nunca encolhe abaixo do necessário).
+  if(!fit && lastStlIdx>=0){
+    const wrap=table.closest('.tbl-wrap');
+    const avail=wrap?wrap.clientWidth:0;
+    if(avail>totalW+0.5){
+      const stretchIdx=cfg.cols.map((c,i)=>c.band==='l'?-1:i).filter(i=>i>=0);
+      if(stretchIdx.length){
+        const stretchCur=stretchIdx.reduce((s,i)=>s+widths[i],0);
+        const extra=avail-totalW;
+        let acc=0, newW=widths.slice();
+        stretchIdx.forEach((i,idx)=>{
+          const add=idx===stretchIdx.length-1?(extra-acc):Math.round(extra*(widths[i]/stretchCur));
+          acc+=add; newW[i]=widths[i]+add;
+        });
+        stretchIdx.forEach(i=>{ cols[i].style.width=newW[i]+'px'; });
+        table.style.width=avail+'px';
+      }
+    }
+  }
   // sort handlers
   table.querySelectorAll('thead th').forEach(th=>{
     th.addEventListener('click',e=>{ if(e.target.classList.contains('rsz'))return;
